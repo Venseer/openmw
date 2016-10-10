@@ -6,6 +6,7 @@
 #include <osg/Array>
 #include <osg/LOD>
 #include <osg/TexGen>
+#include <osg/ValueObject>
 
 // resource
 #include <components/misc/stringops.hpp>
@@ -276,11 +277,13 @@ namespace NifOsg
     public:
         /// @param filename used for warning messages.
         LoaderImpl(const std::string& filename)
-            : mFilename(filename)
+            : mFilename(filename), mFirstRootTextureIndex(-1), mFoundFirstRootTexturingProperty(false)
         {
 
         }
         std::string mFilename;
+        size_t mFirstRootTextureIndex;
+        bool mFoundFirstRootTexturingProperty;
 
         static void loadKf(Nif::NIFFilePtr nif, KeyframeHolder& target)
         {
@@ -321,8 +324,8 @@ namespace NifOsg
                     continue;
                 }
 
-                if (!(ctrl->flags & Nif::NiNode::ControllerFlag_Active))
-                    continue;
+                // Vanilla seems to ignore the "active" flag for NiKeyframeController,
+                // so we don't want to skip inactive controllers here.
 
                 const Nif::NiStringExtraData *strdata = static_cast<const Nif::NiStringExtraData*>(extra.getPtr());
                 const Nif::NiKeyframeController *key = static_cast<const Nif::NiKeyframeController*>(ctrl.getPtr());
@@ -371,10 +374,24 @@ namespace NifOsg
         void applyNodeProperties(const Nif::Node *nifNode, osg::Node *applyTo, SceneUtil::CompositeStateSetUpdater* composite, Resource::ImageManager* imageManager, std::vector<int>& boundTextures, int animflags)
         {
             const Nif::PropertyList& props = nifNode->props;
-            for (size_t i = 0; i <props.length();++i)
+            for (size_t i = 0; i <props.length(); ++i)
             {
                 if (!props[i].empty())
+                {
+                    // Get the lowest numbered recIndex of the NiTexturingProperty root node.
+                    // This is what is overridden when a spell effect "particle texture" is used.
+                    if (nifNode->parent == NULL && !mFoundFirstRootTexturingProperty && props[i].getPtr()->recType == Nif::RC_NiTexturingProperty)
+                    {
+                        mFirstRootTextureIndex = props[i].getPtr()->recIndex;
+                        mFoundFirstRootTexturingProperty = true;
+                    }
+                    else if (props[i].getPtr()->recType == Nif::RC_NiTexturingProperty)
+                    {
+                        if (props[i].getPtr()->recIndex == mFirstRootTextureIndex)
+                            applyTo->setUserValue("overrideFx", 1);                
+                    }
                     handleProperty(props[i].getPtr(), applyTo, composite, imageManager, boundTextures, animflags);
+                }              
             }
         }
 
@@ -478,6 +495,12 @@ namespace NifOsg
             if (textureEffect->textureType != Nif::NiTextureEffect::Environment_Map)
             {
                 std::cerr << "Unhandled NiTextureEffect type " << textureEffect->textureType << " in " << mFilename << std::endl;
+                return;
+            }
+
+            if (textureEffect->texture.empty())
+            {
+                std::cerr << "NiTextureEffect missing source texture in " << mFilename << std::endl;
                 return;
             }
 
@@ -692,14 +715,14 @@ namespace NifOsg
                     continue;
                 if (ctrl->recType == Nif::RC_NiUVController)
                 {
-                    const Nif::NiUVController *uvctrl = static_cast<const Nif::NiUVController*>(ctrl.getPtr());
+                    const Nif::NiUVController *niuvctrl = static_cast<const Nif::NiUVController*>(ctrl.getPtr());
                     std::set<int> texUnits;
                     for (unsigned int i=0; i<boundTextures.size(); ++i)
                         texUnits.insert(i);
 
-                    osg::ref_ptr<UVController> ctrl = new UVController(uvctrl->data.getPtr(), texUnits);
-                    setupController(uvctrl, ctrl, animflags);
-                    composite->addController(ctrl);
+                    osg::ref_ptr<UVController> uvctrl = new UVController(niuvctrl->data.getPtr(), texUnits);
+                    setupController(niuvctrl, uvctrl, animflags);
+                    composite->addController(uvctrl);
                 }
                 else if (ctrl->recType == Nif::RC_NiVisController)
                 {
@@ -754,16 +777,16 @@ namespace NifOsg
                 if (ctrl->recType == Nif::RC_NiAlphaController)
                 {
                     const Nif::NiAlphaController* alphactrl = static_cast<const Nif::NiAlphaController*>(ctrl.getPtr());
-                    osg::ref_ptr<AlphaController> ctrl(new AlphaController(alphactrl->data.getPtr()));
-                    setupController(alphactrl, ctrl, animflags);
-                    composite->addController(ctrl);
+                    osg::ref_ptr<AlphaController> osgctrl(new AlphaController(alphactrl->data.getPtr()));
+                    setupController(alphactrl, osgctrl, animflags);
+                    composite->addController(osgctrl);
                 }
                 else if (ctrl->recType == Nif::RC_NiMaterialColorController)
                 {
                     const Nif::NiMaterialColorController* matctrl = static_cast<const Nif::NiMaterialColorController*>(ctrl.getPtr());
-                    osg::ref_ptr<MaterialColorController> ctrl(new MaterialColorController(matctrl->data.getPtr()));
-                    setupController(matctrl, ctrl, animflags);
-                    composite->addController(ctrl);
+                    osg::ref_ptr<MaterialColorController> osgctrl(new MaterialColorController(matctrl->data.getPtr()));
+                    setupController(matctrl, osgctrl, animflags);
+                    composite->addController(osgctrl);
                 }
                 else
                     std::cerr << "Unexpected material controller " << ctrl->recType << " in " << mFilename << std::endl;
@@ -862,6 +885,8 @@ namespace NifOsg
             else
                 return;
 
+            osg::BoundingBox box;
+
             int i=0;
             for (std::vector<Nif::NiParticleSystemController::Particle>::const_iterator it = partctrl->particles.begin();
                  i<particledata->activeCount && it != partctrl->particles.end(); ++it, ++i)
@@ -876,7 +901,8 @@ namespace NifOsg
                 // Note this position and velocity is not correct for a particle system with absolute reference frame,
                 // which can not be done in this loader since we are not attached to the scene yet. Will be fixed up post-load in the SceneManager.
                 created->setVelocity(particle.velocity);
-                created->setPosition(particledata->vertices->at(particle.vertex));
+                const osg::Vec3f& position = particledata->vertices->at(particle.vertex);
+                created->setPosition(position);
 
                 osg::Vec4f partcolor (1.f,1.f,1.f,1.f);
                 if (particle.vertex < int(particledata->colors->size()))
@@ -885,10 +911,12 @@ namespace NifOsg
                 float size = particledata->sizes.at(particle.vertex) * partctrl->size;
 
                 created->setSizeRange(osgParticle::rangef(size, size));
+                box.expandBy(osg::BoundingSphere(position, size));
             }
 
-            osg::BoundingBox box;
+            // radius may be used to force a larger bounding box
             box.expandBy(osg::BoundingSphere(osg::Vec3(0,0,0), particledata->radius));
+
             partsys->setInitialBound(box);
         }
 
@@ -918,9 +946,9 @@ namespace NifOsg
             emitter->setShooter(shooter);
 
             osgParticle::BoxPlacer* placer = new osgParticle::BoxPlacer;
-            placer->setXRange(-partctrl->offsetRandom.x(), partctrl->offsetRandom.x());
-            placer->setYRange(-partctrl->offsetRandom.y(), partctrl->offsetRandom.y());
-            placer->setZRange(-partctrl->offsetRandom.z(), partctrl->offsetRandom.z());
+            placer->setXRange(-partctrl->offsetRandom.x() / 2.f, partctrl->offsetRandom.x() / 2.f);
+            placer->setYRange(-partctrl->offsetRandom.y() / 2.f, partctrl->offsetRandom.y() / 2.f);
+            placer->setZRange(-partctrl->offsetRandom.z() / 2.f, partctrl->offsetRandom.z() / 2.f);
 
             emitter->setPlacer(placer);
             return emitter;
@@ -1104,7 +1132,7 @@ namespace NifOsg
                 geometry->setDataVariance(osg::Object::STATIC);
                 osg::ref_ptr<FrameSwitch> frameswitch = new FrameSwitch;
 
-                osg::ref_ptr<osg::Geometry> geom2 = static_cast<osg::Geometry*>(osg::clone(geometry.get(), osg::CopyOp::DEEP_COPY_NODES|osg::CopyOp::DEEP_COPY_DRAWABLES));
+                osg::ref_ptr<osg::Geometry> geom2 = osg::clone(geometry.get(), osg::CopyOp::DEEP_COPY_NODES|osg::CopyOp::DEEP_COPY_DRAWABLES);
                 frameswitch->addChild(geometry);
                 frameswitch->addChild(geom2);
 
@@ -1218,8 +1246,7 @@ namespace NifOsg
 
             osg::ref_ptr<FrameSwitch> frameswitch = new FrameSwitch;
 
-            SceneUtil::RigGeometry* rig2 = static_cast<SceneUtil::RigGeometry*>(osg::clone(rig.get(), osg::CopyOp::DEEP_COPY_NODES|
-                                                                                           osg::CopyOp::DEEP_COPY_DRAWABLES));
+            SceneUtil::RigGeometry* rig2 = osg::clone(rig.get(), osg::CopyOp::DEEP_COPY_NODES|osg::CopyOp::DEEP_COPY_DRAWABLES);
             frameswitch->addChild(rig);
             frameswitch->addChild(rig2);
 

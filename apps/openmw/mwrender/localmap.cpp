@@ -7,10 +7,9 @@
 #include <osg/LightModel>
 #include <osg/Texture2D>
 #include <osg/ComputeBoundsVisitor>
+#include <osg/LightSource>
 
 #include <osgDB/ReadFile>
-
-#include <osgViewer/Viewer>
 
 #include <components/esm/fogstate.hpp>
 #include <components/esm/loadcell.hpp>
@@ -68,16 +67,14 @@ namespace
 namespace MWRender
 {
 
-LocalMap::LocalMap(osgViewer::Viewer* viewer)
-    : mViewer(viewer)
+LocalMap::LocalMap(osg::Group* root)
+    : mRoot(root)
     , mMapResolution(Settings::Manager::getInt("local map resolution", "Map"))
     , mMapWorldSize(8192.f)
     , mCellDistance(Settings::Manager::getInt("local map cell distance", "Map"))
     , mAngle(0.f)
     , mInterior(false)
 {
-    mRoot = mViewer->getSceneData()->asGroup();
-
     SceneUtil::FindByNameVisitor find("Scene Root");
     mRoot->accept(find);
     mSceneRoot = find.mFoundNode;
@@ -88,9 +85,9 @@ LocalMap::LocalMap(osgViewer::Viewer* viewer)
 LocalMap::~LocalMap()
 {
     for (CameraVector::iterator it = mActiveCameras.begin(); it != mActiveCameras.end(); ++it)
-        mRoot->removeChild(*it);
+        removeCamera(*it);
     for (CameraVector::iterator it = mCamerasPendingRemoval.begin(); it != mCamerasPendingRemoval.end(); ++it)
-        mRoot->removeChild(*it);
+        removeCamera(*it);
 }
 
 const osg::Vec2f LocalMap::rotatePoint(const osg::Vec2f& point, const osg::Vec2f& center, const float angle)
@@ -208,7 +205,6 @@ osg::ref_ptr<osg::Camera> LocalMap::createOrthographicCamera(float x, float y, f
 
     camera->addChild(lightSource);
     camera->setStateSet(stateset);
-    camera->setGraphicsContext(mViewer->getCamera()->getGraphicsContext());
     camera->setViewport(0, 0, mMapResolution, mMapResolution);
     camera->setUpdateCallback(new CameraLocalUpdateCallback(this));
 
@@ -275,6 +271,12 @@ osg::ref_ptr<osg::Texture2D> LocalMap::getFogOfWarTexture(int x, int y)
         return found->second.mFogOfWarTexture;
 }
 
+void LocalMap::removeCamera(osg::Camera *cam)
+{
+    cam->removeChildren(0, cam->getNumChildren());
+    mRoot->removeChild(cam);
+}
+
 void LocalMap::markForRemoval(osg::Camera *cam)
 {
     CameraVector::iterator found = std::find(mActiveCameras.begin(), mActiveCameras.end(), cam);
@@ -293,11 +295,7 @@ void LocalMap::cleanupCameras()
         return;
 
     for (CameraVector::iterator it = mCamerasPendingRemoval.begin(); it != mCamerasPendingRemoval.end(); ++it)
-    {
-        (*it)->removeChildren(0, (*it)->getNumChildren());
-        (*it)->setGraphicsContext(NULL);
-        mRoot->removeChild(*it);
-    }
+        removeCamera(*it);
 
     mCamerasPendingRemoval.clear();
 }
@@ -309,7 +307,7 @@ void LocalMap::requestExteriorMap(const MWWorld::CellStore* cell)
     int x = cell->getCell()->getGridX();
     int y = cell->getCell()->getGridY();
 
-    osg::BoundingSphere bound = mViewer->getSceneData()->getBound();
+    osg::BoundingSphere bound = mSceneRoot->getBound();
     float zmin = bound.center().z() - bound.radius();
     float zmax = bound.center().z() + bound.radius();
 

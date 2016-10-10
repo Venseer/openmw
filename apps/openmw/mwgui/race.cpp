@@ -41,9 +41,9 @@ namespace
 namespace MWGui
 {
 
-    RaceDialog::RaceDialog(osgViewer::Viewer* viewer, Resource::ResourceSystem* resourceSystem)
+    RaceDialog::RaceDialog(osg::Group* parent, Resource::ResourceSystem* resourceSystem)
       : WindowModal("openmw_chargen_race.layout")
-      , mViewer(viewer)
+      , mParent(parent)
       , mResourceSystem(resourceSystem)
       , mGenderIndex(0)
       , mFaceIndex(0)
@@ -136,7 +136,7 @@ namespace MWGui
         mPreview.reset(NULL);
         mPreviewTexture.reset(NULL);
 
-        mPreview.reset(new MWRender::RaceSelectionPreview(mViewer, mResourceSystem));
+        mPreview.reset(new MWRender::RaceSelectionPreview(mParent, mResourceSystem));
         mPreview->rebuild();
         mPreview->setAngle (mCurrentAngle);
 
@@ -362,10 +362,10 @@ namespace MWGui
         std::sort(items.begin(), items.end(), sortRaces);
 
         int index = 0;
-        for (std::vector<std::pair<std::string, std::string> >::const_iterator it = items.begin(); it != items.end(); ++it)
+        for (std::vector<std::pair<std::string, std::string> >::const_iterator iter = items.begin(); iter != items.end(); ++iter)
         {
-            mRaceList->addItem(it->second, it->first);
-            if (Misc::StringUtils::ciEqual(it->first, mCurrentRaceId))
+            mRaceList->addItem(iter->second, iter->first);
+            if (Misc::StringUtils::ciEqual(iter->first, mCurrentRaceId))
                 mRaceList->setIndexSelected(index);
             ++index;
         }

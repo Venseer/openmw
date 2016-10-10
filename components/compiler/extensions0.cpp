@@ -48,7 +48,7 @@ namespace Compiler
             extensions.registerFunction ("getaipackagedone", 'l', "", opcodeGetAiPackageDone,
                 opcodeGetAiPackageDoneExplicit);
             extensions.registerFunction ("getcurrentaipackage", 'l', "", opcodeGetCurrentAiPackage,
-                opcodeGetAiPackageDoneExplicit);
+                opcodeGetCurrentAiPackageExplicit);
             extensions.registerFunction ("getdetected", 'l', "c", opcodeGetDetected,
                 opcodeGetDetectedExplicit);
             extensions.registerInstruction ("sethello", "l", opcodeSetHello, opcodeSetHelloExplicit);
@@ -70,7 +70,7 @@ namespace Compiler
             extensions.registerFunction ("getlineofsight", 'l', "c", opcodeGetLineOfSight, opcodeGetLineOfSightExplicit);
             extensions.registerFunction ("getlos", 'l', "c", opcodeGetLineOfSight, opcodeGetLineOfSightExplicit);
             extensions.registerFunction("gettarget", 'l', "c", opcodeGetTarget, opcodeGetTargetExplicit);
-            extensions.registerInstruction("face", "llX", opcodeFace, opcodeFaceExplicit);
+            extensions.registerInstruction("face", "ffX", opcodeFace, opcodeFaceExplicit);
         }
     }
 

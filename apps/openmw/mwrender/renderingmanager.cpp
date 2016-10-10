@@ -258,6 +258,8 @@ namespace MWRender
 
     RenderingManager::~RenderingManager()
     {
+        // let background loading thread finish before we delete anything else
+        mWorkQueue = NULL;
     }
 
     MWRender::Objects& RenderingManager::getObjects()
@@ -618,7 +620,6 @@ namespace MWRender
         mViewer->advance(mViewer->getFrameStamp()->getSimulationTime());
 
         rttCamera->removeChildren(0, rttCamera->getNumChildren());
-        rttCamera->setGraphicsContext(NULL);
         mRootNode->removeChild(rttCamera);
     }
 
@@ -661,6 +662,7 @@ namespace MWRender
     {
         RenderingManager::RayResult result;
         result.mHit = false;
+        result.mRatio = 0;
         if (intersector->containsIntersections())
         {
             result.mHit = true;
@@ -668,6 +670,7 @@ namespace MWRender
 
             result.mHitPointWorld = intersection.getWorldIntersectPoint();
             result.mHitNormalWorld = intersection.getWorldIntersectNormal();
+            result.mRatio = intersection.ratio;
 
             PtrHolder* ptrHolder = NULL;
             for (osg::NodePath::const_iterator it = intersection.nodePath.begin(); it != intersection.nodePath.end(); ++it)
@@ -739,9 +742,9 @@ namespace MWRender
         mObjects->updatePtr(old, updated);
     }
 
-    void RenderingManager::spawnEffect(const std::string &model, const std::string &texture, const osg::Vec3f &worldPosition, float scale)
+    void RenderingManager::spawnEffect(const std::string &model, const std::string &texture, const osg::Vec3f &worldPosition, float scale, bool isMagicVFX)
     {
-        mEffectManager->addEffect(model, texture, worldPosition, scale);
+        mEffectManager->addEffect(model, texture, worldPosition, scale, isMagicVFX);
     }
 
     void RenderingManager::notifyWorldSpaceChanged()

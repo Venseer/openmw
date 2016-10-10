@@ -74,6 +74,8 @@ namespace CSVRender
             /// \note Does not update the view or any cell marker
             void moveCellSelection (int x, int y);
 
+            void addCellToSceneFromCamera (int offsetX, int offsetY);
+
         public:
 
             PagedWorldspaceWidget (QWidget *parent, CSMDoc::Document& document);
@@ -82,7 +84,8 @@ namespace CSVRender
             /// hint system.
 
             virtual ~PagedWorldspaceWidget();
-
+            
+            /// Decodes the the hint string to set of cell that are rendered.
             void useViewHint (const std::string& hint);
 
             void setCellSelection(const CSMWorld::CellSelection& selection);
@@ -138,7 +141,7 @@ namespace CSVRender
 
             virtual void addEditModeSelectorButtons (CSVWidget::SceneToolMode *tool);
 
-            virtual void handleMouseClick (const WorldspaceHitResult& hit, const std::string& button, bool shift);
+            virtual void handleInteractionPress (const WorldspaceHitResult& hit, InteractionType type);
 
         signals:
 
@@ -151,6 +154,16 @@ namespace CSVRender
             virtual void cellRemoved (const QModelIndex& parent, int start, int end);
 
             virtual void cellAdded (const QModelIndex& index, int start, int end);
+
+            void loadCameraCell();
+
+            void loadEastCell();
+
+            void loadNorthCell();
+
+            void loadWestCell();
+
+            void loadSouthCell();
 
     };
 }

@@ -91,8 +91,8 @@ std::list<AiPackage*>::const_iterator AiSequence::erase(std::list<AiPackage*>::c
     {
         if (package == it)
         {
-            AiPackage* package = *it;
-            delete package;
+            AiPackage* packagePtr = *it;
+            delete packagePtr;
             return mPackages.erase(it);
         }
     }
@@ -159,7 +159,8 @@ bool isActualAiPackage(int packageTypeId)
 {
     return (packageTypeId != AiPackage::TypeIdCombat
                    && packageTypeId != AiPackage::TypeIdPursue
-                   && packageTypeId != AiPackage::TypeIdAvoidDoor);
+                   && packageTypeId != AiPackage::TypeIdAvoidDoor
+                   && packageTypeId != AiPackage::TypeIdFace);
 }
 
 void AiSequence::execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration)
@@ -233,6 +234,7 @@ void AiSequence::execute (const MWWorld::Ptr& actor, CharacterController& charac
             // Put repeating noncombat AI packages on the end of the stack so they can be used again
             if (isActualAiPackage(packageTypeId) && (mRepeat || package->getRepeat()))
             {
+                package->reset();
                 mPackages.push_back(package->clone());
             }
             // To account for the rare case where AiPackage::execute() queued another AI package

@@ -23,7 +23,7 @@ add_openmw_dir (mwrender
     actors objects renderingmanager animation rotatecontroller sky npcanimation vismask
     creatureanimation effectmanager util renderinginterface pathgrid rendermode weaponanimation
     bulletdebugdraw globalmap characterpreview camera localmap water terrainstorage ripplesimulation
-    renderbin
+    renderbin actoranimation
     )
 
 add_openmw_dir (mwinput
@@ -84,7 +84,7 @@ add_openmw_dir (mwmechanics
     drawstate spells activespells npcstats aipackage aisequence aipursue alchemy aiwander aitravel aifollow aiavoiddoor
     aiescort aiactivate aicombat repair enchanting pathfinding pathgrid security spellsuccess spellcasting
     disease pickpocket levelledlist combat steering obstacle autocalcspell difficultyscaling aicombataction actor summoning
-    character actors objects aistate coordinateconverter trading
+    character actors objects aistate coordinateconverter trading aiface
     )
 
 add_openmw_dir (mwstate
@@ -132,7 +132,7 @@ target_link_libraries(openmw
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
     ${OPENAL_LIBRARY}
     ${FFmpeg_LIBRARIES}
-    ${MYGUI_LIBRARIES}
+    ${MyGUI_LIBRARIES}
     ${SDL2_LIBRARY}
     "osg-ffmpeg-videoplayer"
     "oics"
@@ -142,14 +142,15 @@ target_link_libraries(openmw
 if (ANDROID)
     set (OSG_PLUGINS
         -Wl,--whole-archive
-        ${OSG_PLUGINS_DIR}/libosgdb_dds.a
-        ${OSG_PLUGINS_DIR}/libosgdb_bmp.a
-        ${OSG_PLUGINS_DIR}/libosgdb_tga.a
-        ${OSG_PLUGINS_DIR}/libosgdb_gif.a
-        ${OSG_PLUGINS_DIR}/libosgdb_jpeg.a
-        ${OSG_PLUGINS_DIR}/libosgdb_png.a
-        -Wl,--no-whole-archive
     )
+    foreach(PLUGIN_NAME ${USED_OSG_PLUGINS})
+        set(OSG_PLUGINS ${OSG_PLUGINS} ${OSG_PLUGINS_DIR}/lib${PLUGIN_NAME}.a)
+    endforeach()
+
+    set (OSG_PLUGINS
+        ${OSG_PLUGINS} -Wl,--no-whole-archive
+    )
+
     target_link_libraries(openmw
         EGL
         android

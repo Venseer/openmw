@@ -127,7 +127,9 @@ namespace MWWorld
             void updateSoundListener();
             void updateWindowManager ();
             void updatePlayer(bool paused);
+
             MWWorld::Ptr getFacedObject(float maxDistance, bool ignorePlayer=true);
+
     public: // FIXME
             void removeContainerScripts(const Ptr& reference);
     private:
@@ -154,6 +156,9 @@ namespace MWWorld
                 const std::vector<std::string>& content, ContentLoader& contentLoader);
 
             float mSwimHeightScale;
+
+            float mDistanceToFacedObject;
+
             bool isUnderwater(const MWWorld::ConstPtr &object, const float heightRatio) const;
             ///< helper function for implementing isSwimming(), isSubmerged(), isWading()
 
@@ -163,6 +168,7 @@ namespace MWWorld
             int mDaysInPrison;
 
             float feetToGameUnits(float feet);
+            float getActivationDistancePlusTelekinesis();
 
             MWWorld::ConstPtr getClosestMarker( const MWWorld::Ptr &ptr, const std::string &id );
             MWWorld::ConstPtr getClosestMarkerFromExteriorPosition( const osg::Vec3f& worldPos, const std::string &id );
@@ -310,7 +316,7 @@ namespace MWWorld
             virtual bool toggleSky();
             ///< \return Resulting mode
 
-            virtual void changeWeather (const std::string& region, unsigned int id);
+            virtual void changeWeather (const std::string& region, const unsigned int id);
 
             virtual int getCurrentWeather() const;
 
@@ -342,6 +348,8 @@ namespace MWWorld
 
             virtual MWWorld::Ptr getFacedObject();
             ///< Return pointer to the object the player is looking at, if it is within activation range
+
+            virtual float getDistanceToFacedObject();
 
             /// Returns a pointer to the object the provided object would hit (if within the
             /// specified distance), and the point where the hit occurs. This will attempt to
@@ -474,6 +482,7 @@ namespace MWWorld
             virtual bool isSwimming(const MWWorld::ConstPtr &object) const;
             virtual bool isUnderwater(const MWWorld::CellStore* cell, const osg::Vec3f &pos) const;
             virtual bool isWading(const MWWorld::ConstPtr &object) const;
+            virtual bool isWaterWalkingCastableOnTarget(const MWWorld::ConstPtr &target) const;
             virtual bool isOnGround(const MWWorld::Ptr &ptr) const;
 
             virtual osg::Matrixf getActorHeadTransform(const MWWorld::ConstPtr& actor) const;
@@ -586,9 +595,8 @@ namespace MWWorld
              */
             virtual void castSpell (const MWWorld::Ptr& actor);
 
-            virtual void launchMagicBolt (const std::string& model, const std::string& sound, const std::string& spellId,
-                                          float speed, bool stack, const ESM::EffectList& effects,
-                                           const MWWorld::Ptr& caster, const std::string& sourceName, const osg::Vec3f& fallbackDirection);
+            virtual void launchMagicBolt (const std::string& spellId, bool stack, const ESM::EffectList& effects,
+                                          const MWWorld::Ptr& caster, const std::string& sourceName, const osg::Vec3f& fallbackDirection);
             virtual void launchProjectile (MWWorld::Ptr actor, MWWorld::ConstPtr projectile,
                                            const osg::Vec3f& worldPos, const osg::Quat& orient, MWWorld::Ptr bow, float speed, float attackStrength);
 

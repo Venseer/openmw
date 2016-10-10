@@ -17,11 +17,12 @@ Programmers
     aegis
     Aleksandar Jovanov
     Alex Haddad (rainChu)
-    Alex McKibben (WeirdSexy)
+    Alex McKibben
     alexanderkjall
     Alexander Nadeau (wareya)
     Alexander Olofsson (Ace)
     Allofich
+    AnyOldName3
     Austin Salgat (Salgat)
     Artem Kotsynyak (greye)
     artemutin
@@ -36,6 +37,7 @@ Programmers
     Cory F. Cohen (cfcohen)
     Cris Mihalache (Mirceam)
     darkf
+    devnexen
     Dieho
     Dmitry Shkurskiy (endorph)
     Douglas Diniz (Dgdiniz)
@@ -74,6 +76,7 @@ Programmers
     Lars Söderberg (Lazaroth)
     lazydev
     Leon Saunders (emoose)
+    lohikaarme
     Lukasz Gromanowski (lgro)
     Manuel Edelmann (vorenon)
     Marc Bouvier (CramitDeFrog)
@@ -98,6 +101,7 @@ Programmers
     Nikolay Kasyanov (corristo)
     nobrakal
     Nolan Poe (nopoe)
+    Oleg Chkan (mrcheko)
     Paul Cercueil (pcercuei)
     Paul McElroy (Greendogo)
     Pi03k
@@ -119,6 +123,7 @@ Programmers
     smbas
     Stefan Galowicz (bogglez)
     Stanislav Bobrov (Jiub)
+    stil-t
     svaante
     Sylvain Thesnieres (Garvek)
     t6
@@ -154,7 +159,6 @@ Packagers
 Public Relations and Translations
 ---------------------------------
 
-    Alex McKibben (WeirdSexy) - Podcaster
     Artem Kotsynyak (greye) - Russian News Writer
     Jim Clauwaert (Zedd) - Public Outreach
     Julien Voisin (jvoisin/ap0) - French News Writer

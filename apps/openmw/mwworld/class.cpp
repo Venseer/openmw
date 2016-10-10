@@ -98,7 +98,12 @@ namespace MWWorld
         throw std::runtime_error("class cannot block");
     }
 
-    void Class::onHit(const Ptr& ptr, float damage, bool ishealth, const Ptr& object, const Ptr& attacker, bool successful) const
+    bool Class::canBeActivated(const Ptr& ptr) const
+    {
+        return !getName(ptr).empty();
+    }
+
+    void Class::onHit(const Ptr& ptr, float damage, bool ishealth, const Ptr& object, const Ptr& attacker, const osg::Vec3f& hitPosition, bool successful) const
     {
         throw std::runtime_error("class cannot be hit");
     }
@@ -270,6 +275,14 @@ namespace MWWorld
     MWGui::ToolTipInfo Class::getToolTipInfo (const ConstPtr& ptr, int count) const
     {
         throw std::runtime_error ("class does not have a tool tip");
+    }
+
+    bool Class::showsInInventory (const ConstPtr& ptr) const
+    {
+        // NOTE: Don't show WerewolfRobe objects in the inventory, or allow them to be taken.
+        // Vanilla likely uses a hack like this since there's no other way to prevent it from
+        // being shown or taken.
+        return (ptr.getCellRef().getRefId() != "werewolfrobe");
     }
 
     bool Class::hasToolTip (const ConstPtr& ptr) const

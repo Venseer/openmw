@@ -8,6 +8,7 @@
 namespace ESM
 {
     struct Light;
+    struct MagicEffect;
 }
 
 namespace Resource
@@ -24,6 +25,7 @@ namespace NifOsg
 namespace SceneUtil
 {
     class LightSource;
+    class LightListCallback;
     class Skeleton;
 }
 
@@ -32,6 +34,7 @@ namespace MWRender
 
 class ResetAccumRootCallback;
 class RotateController;
+class GlowUpdater;
 
 class EffectAnimationTime : public SceneUtil::ControllerSource
 {
@@ -181,6 +184,7 @@ protected:
         float mSpeedMult;
 
         bool mPlaying;
+        bool mLoopingEnabled;
         size_t mLoopCount;
 
         AnimPriority mPriority;
@@ -188,8 +192,8 @@ protected:
         bool mAutoDisable;
 
         AnimState() : mStartTime(0.0f), mLoopStartTime(0.0f), mLoopStopTime(0.0f), mStopTime(0.0f),
-                      mTime(new float), mSpeedMult(1.0f), mPlaying(false), mLoopCount(0),
-                      mPriority(0), mBlendMask(0), mAutoDisable(true)
+                      mTime(new float), mSpeedMult(1.0f), mPlaying(false), mLoopingEnabled(true),
+                      mLoopCount(0), mPriority(0), mBlendMask(0), mAutoDisable(true)
         {
         }
         ~AnimState();
@@ -201,6 +205,11 @@ protected:
         void setTime(float time)
         {
             *mTime = time;
+        }
+
+        bool shouldLoop() const
+        {
+            return getTime() >= mLoopStopTime && mLoopingEnabled && mLoopCount > 0;
         }
     };
     typedef std::map<std::string,AnimState> AnimStateMap;
@@ -261,8 +270,11 @@ protected:
     float mHeadPitchRadians;
 
     osg::ref_ptr<SceneUtil::LightSource> mGlowLight;
+    osg::ref_ptr<GlowUpdater> mGlowUpdater;
 
     float mAlpha;
+
+    osg::ref_ptr<SceneUtil::LightListCallback> mLightListCallback;
 
     const NodeMap& getNodeMap() const;
 
@@ -298,6 +310,8 @@ protected:
      */
     void setObjectRoot(const std::string &model, bool forceskeleton, bool baseonly, bool isCreature);
 
+    virtual void objectRootReset() {}
+
     /** Adds the keyframe controllers in the specified model as a new animation source. Note that the .nif
      * file extension will be replaced with .kf.
      * @note Later added animation sources have the highest priority when it comes to finding a particular animation.
@@ -317,7 +331,7 @@ protected:
 
     osg::Vec4f getEnchantmentColor(const MWWorld::ConstPtr& item) const;
 
-    void addGlow(osg::ref_ptr<osg::Node> node, osg::Vec4f glowColor);
+    void addGlow(osg::ref_ptr<osg::Node> node, osg::Vec4f glowColor, float glowDuration = -1);
 
     /// Set the render bin for this animation's object root. May be customized by subclasses.
     virtual void setRenderBin();
@@ -350,6 +364,10 @@ public:
     void addEffect (const std::string& model, int effectId, bool loop = false, const std::string& bonename = "", std::string texture = "");
     void removeEffect (int effectId);
     void getLoopingEffects (std::vector<int>& out) const;
+
+    // Add a spell casting glow to an object. From measuring video taken from the original engine,
+    // the glow seems to be about 1.5 seconds except for telekinesis, which is 1 second.
+    void addSpellCastGlow(const ESM::MagicEffect *effect, float glowDuration = 1.5);
 
     virtual void updatePtr(const MWWorld::Ptr &ptr);
 
@@ -384,10 +402,6 @@ public:
               float speedmult, const std::string &start, const std::string &stop,
               float startpoint, size_t loops, bool loopfallback=false);
 
-    /** If the given animation group is currently playing, set its remaining loop count to '0'.
-     */
-    void stopLooping(const std::string& groupName);
-
     /** Adjust the speed multiplier of an already playing animation.
      */
     void adjustSpeedMult (const std::string& groupname, float speedmult);
@@ -415,6 +429,8 @@ public:
     /// Get the current absolute position in the animation track for the animation that is currently playing from the given group.
     float getCurrentTime(const std::string& groupname) const;
 
+    size_t getCurrentLoopCount(const std::string& groupname) const;
+
     /** Disables the specified animation group;
      * \param groupname Animation group to disable.
      */
@@ -424,6 +440,8 @@ public:
     float getVelocity(const std::string &groupname) const;
 
     virtual osg::Vec3f runAnimation(float duration);
+
+    void setLoopingEnabled(const std::string &groupname, bool enabled);
 
     /// This is typically called as part of runAnimation, but may be called manually if needed.
     void updateEffects(float duration);

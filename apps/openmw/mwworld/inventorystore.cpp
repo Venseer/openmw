@@ -414,8 +414,7 @@ void MWWorld::InventoryStore::updateMagicEffects(const Ptr& actor)
                     // During first auto equip, we don't play any sounds.
                     // Basically we don't want sounds when the actor is first loaded,
                     // the items should appear as if they'd always been equipped.
-                    mListener->permanentEffectAdded(magicEffect, !mFirstAutoEquip,
-                                                        !mFirstAutoEquip && effectIt == enchantment.mEffects.mList.begin());
+                    mListener->permanentEffectAdded(magicEffect, !mFirstAutoEquip);
                 }
 
                 if (magnitude)
@@ -607,12 +606,12 @@ MWWorld::ContainerStoreIterator MWWorld::InventoryStore::unequipItemQuantity(con
     return unstack(item, actor, item.getRefData().getCount() - count);
 }
 
-MWWorld::InventoryStoreListener* MWWorld::InventoryStore::getListener()
+MWWorld::InventoryStoreListener* MWWorld::InventoryStore::getInvListener()
 {
     return mListener;
 }
 
-void MWWorld::InventoryStore::setListener(InventoryStoreListener *listener, const Ptr& actor)
+void MWWorld::InventoryStore::setInvListener(InventoryStoreListener *listener, const Ptr& actor)
 {
     mListener = listener;
     updateMagicEffects(actor);

@@ -1389,12 +1389,12 @@ namespace MWMechanics
             iter->second->getCharacterController()->forceStateUpdate();
     }
 
-    bool Actors::playAnimationGroup(const MWWorld::Ptr& ptr, const std::string& groupName, int mode, int number)
+    bool Actors::playAnimationGroup(const MWWorld::Ptr& ptr, const std::string& groupName, int mode, int number, bool persist)
     {
         PtrActorMap::iterator iter = mActors.find(ptr);
         if(iter != mActors.end())
         {
-            return iter->second->getCharacterController()->playGroup(groupName, mode, number);
+            return iter->second->getCharacterController()->playGroup(groupName, mode, number, persist);
         }
         else
         {
@@ -1415,6 +1415,12 @@ namespace MWMechanics
         if(iter != mActors.end())
             return iter->second->getCharacterController()->isAnimPlaying(groupName);
         return false;
+    }
+
+    void Actors::persistAnimationStates()
+    {
+        for (PtrActorMap::iterator iter = mActors.begin(); iter != mActors.end(); ++iter)
+            iter->second->getCharacterController()->persistAnimationState();
     }
 
     void Actors::getObjectsInRange(const osg::Vec3f& position, float radius, std::vector<MWWorld::Ptr>& out)
@@ -1529,7 +1535,7 @@ namespace MWMechanics
         for(std::vector<MWWorld::Ptr>::const_iterator iter(neighbors.begin());iter != neighbors.end();++iter)
         {
             const CreatureStats &stats = iter->getClass().getCreatureStats(*iter);
-            if (stats.isDead() || *iter == actor)
+            if (stats.isDead() || *iter == actor || iter->getClass().isPureWaterCreature(*iter))
                 continue;
             const bool isFollower = std::find(followers.begin(), followers.end(), *iter) != followers.end();
             if (stats.getAiSequence().isInCombat(actor) || (MWBase::Environment::get().getMechanicsManager()->isAggressive(*iter, actor) && !isFollower))

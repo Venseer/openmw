@@ -147,7 +147,13 @@ class CharacterController : public MWRender::Animation::TextKeyListener
     MWWorld::Ptr mPtr;
     MWRender::Animation *mAnimation;
     
-    typedef std::deque<std::pair<std::string,size_t> > AnimationQueue;
+    struct AnimationQueueEntry
+    {
+        std::string mGroup;
+        size_t mLoopCount;
+        bool mPersist;
+    };
+    typedef std::deque<AnimationQueueEntry> AnimationQueue;
     AnimationQueue mAnimQueue;
 
     CharacterState mIdleState;
@@ -192,7 +198,6 @@ class CharacterController : public MWRender::Animation::TextKeyListener
     bool mAttackingOrSpell;
 
     void setAttackTypeBasedOnMovement();
-    void setAttackTypeRandomly();
 
     void refreshCurrentAnims(CharacterState idle, CharacterState movement, JumpingState jump, bool force=false);
     void refreshHitRecoilAnims();
@@ -206,9 +211,9 @@ class CharacterController : public MWRender::Animation::TextKeyListener
     bool updateCreatureState();
     void updateIdleStormState(bool inwater);
 
-    void updateHeadTracking(float duration);
+    void updateAnimQueue();
 
-    void castSpell(const std::string& spellid);
+    void updateHeadTracking(float duration);
 
     void updateMagicEffects();
 
@@ -236,7 +241,10 @@ public:
 
     void update(float duration);
 
-    bool playGroup(const std::string &groupname, int mode, int count);
+    void persistAnimationState();
+    void unpersistAnimationState();
+
+    bool playGroup(const std::string &groupname, int mode, int count, bool persist=false);
     void skipAnim();
     bool isAnimPlaying(const std::string &groupName);
 
@@ -260,6 +268,8 @@ public:
     bool isSneaking() const;
 
     void setAttackingOrSpell(bool attackingOrSpell);
+    void setAIAttackType(std::string attackType); // set and used by AiCombat
+    static void setAttackTypeRandomly(std::string& attackType);
 
     bool readyToPrepareAttack() const;
     bool readyToStartAttack() const;
