@@ -113,7 +113,7 @@ void MWWorld::ContainerStore::storeStates (const CellRefList<T>& collection,
 
 const std::string MWWorld::ContainerStore::sGoldId = "gold_001";
 
-MWWorld::ContainerStore::ContainerStore() : mCachedWeight (0), mWeightUpToDate (false) {}
+MWWorld::ContainerStore::ContainerStore() : mListener(NULL), mCachedWeight (0), mWeightUpToDate (false) {}
 
 MWWorld::ContainerStore::~ContainerStore() {}
 
@@ -450,10 +450,10 @@ void MWWorld::ContainerStore::addInitialItem (const std::string& id, const std::
             }
             else
             {
-                std::string id = MWMechanics::getLevelledItem(ref.getPtr().get<ESM::ItemLevList>()->mBase, false);
-                if (id.empty())
+                std::string itemId = MWMechanics::getLevelledItem(ref.getPtr().get<ESM::ItemLevList>()->mBase, false);
+                if (itemId.empty())
                     return;
-                addInitialItem(id, owner, count, false, levItemList->mId);
+                addInitialItem(itemId, owner, count, false, levItemList->mId);
             }
         }
         else
