@@ -42,7 +42,7 @@ add_openmw_dir (mwgui
     itemmodel containeritemmodel inventoryitemmodel sortfilteritemmodel itemview
     tradeitemmodel companionitemmodel pickpocketitemmodel controllers savegamedialog
     recharge mode videowidget backgroundimage itemwidget screenfader debugwindow spellmodel spellview
-    draganddrop timeadvancer jailscreen
+    draganddrop timeadvancer jailscreen itemchargeview
     )
 
 add_openmw_dir (mwdialogue
@@ -186,7 +186,7 @@ if(APPLE)
     if (FFmpeg_FOUND)
         find_library(COREVIDEO_FRAMEWORK CoreVideo)
         find_library(VDA_FRAMEWORK VideoDecodeAcceleration)
-        target_link_libraries(openmw ${COREVIDEO_FRAMEWORK} ${VDA_FRAMEWORK})
+        target_link_libraries(openmw z ${COREVIDEO_FRAMEWORK} ${VDA_FRAMEWORK})
     endif()
 endif(APPLE)
 
