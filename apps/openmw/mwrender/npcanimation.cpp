@@ -269,25 +269,12 @@ const NpcAnimation::PartBoneMap NpcAnimation::sPartList = createPartListMap();
 
 NpcAnimation::~NpcAnimation()
 {
-    if (!mListenerDisabled
-            // No need to getInventoryStore() to reset, if none exists
-            // This is to avoid triggering the listener via ensureCustomData()->autoEquip()->fireEquipmentChanged()
-            // all from within this destructor. ouch!
-           && mPtr.getRefData().getCustomData() && mPtr.getClass().getInventoryStore(mPtr).getInvListener() == this)
-        mPtr.getClass().getInventoryStore(mPtr).setInvListener(NULL, mPtr);
-
-    // do not detach (delete) parts yet, this is done so the background thread can handle the deletion
-    for(size_t i = 0;i < ESM::PRT_Count;i++)
-    {
-        if (mObjectParts[i].get())
-            mObjectParts[i]->unlink();
-    }
+    mAmmunition.reset();
 }
 
 NpcAnimation::NpcAnimation(const MWWorld::Ptr& ptr, osg::ref_ptr<osg::Group> parentNode, Resource::ResourceSystem* resourceSystem,
-                           bool disableListener, bool disableSounds, ViewMode viewMode, float firstPersonFieldOfView)
-  : ActorAnimation(ptr, parentNode, resourceSystem, disableListener),
-    mListenerDisabled(disableListener),
+                           bool disableSounds, ViewMode viewMode, float firstPersonFieldOfView)
+  : ActorAnimation(ptr, parentNode, resourceSystem),
     mViewMode(viewMode),
     mShowWeapons(false),
     mShowCarriedLeft(true),
@@ -309,9 +296,6 @@ NpcAnimation::NpcAnimation(const MWWorld::Ptr& ptr, osg::ref_ptr<osg::Group> par
     }
 
     updateNpcBase();
-
-    if (!disableListener)
-        mPtr.getClass().getInventoryStore(mPtr).setInvListener(this, mPtr);
 }
 
 void NpcAnimation::setViewMode(NpcAnimation::ViewMode viewMode)
@@ -667,13 +651,18 @@ void NpcAnimation::updateParts()
         attachArrow();
 }
 
+
+
 PartHolderPtr NpcAnimation::insertBoundedPart(const std::string& model, const std::string& bonename, const std::string& bonefilter, bool enchantedGlow, osg::Vec4f* glowColor)
 {
     osg::ref_ptr<osg::Node> instance = mResourceSystem->getSceneManager()->getInstance(model);
-    osg::ref_ptr<osg::Node> attached = SceneUtil::attach(instance, mObjectRoot, bonefilter, bonename);
-    if (mSkeleton)
-        mSkeleton->markDirty();
-    mResourceSystem->getSceneManager()->notifyAttached(attached);
+
+    const NodeMap& nodeMap = getNodeMap();
+    NodeMap::const_iterator found = nodeMap.find(Misc::StringUtils::lowerCase(bonename));
+    if (found == nodeMap.end())
+        throw std::runtime_error("Can't find attachment node " + bonename);
+
+    osg::ref_ptr<osg::Node> attached = SceneUtil::attach(instance, mObjectRoot, bonefilter, found->second);
     if (enchantedGlow)
         addGlow(attached, *glowColor);
 
@@ -772,43 +761,46 @@ bool NpcAnimation::addOrReplaceIndividualPart(ESM::PartReferenceType type, int g
         }
     }
 
-    boost::shared_ptr<SceneUtil::ControllerSource> src;
-    if (type == ESM::PRT_Head)
+    osg::Node* node = mObjectParts[type]->getNode();
+    if (node->getNumChildrenRequiringUpdateTraversal() > 0)
     {
-        src = mHeadAnimationTime;
-
-        osg::Node* node = mObjectParts[type]->getNode();
-        if (node->getUserDataContainer())
+        boost::shared_ptr<SceneUtil::ControllerSource> src;
+        if (type == ESM::PRT_Head)
         {
-            for (unsigned int i=0; i<node->getUserDataContainer()->getNumUserObjects(); ++i)
-            {
-                osg::Object* obj = node->getUserDataContainer()->getUserObject(i);
-                if (NifOsg::TextKeyMapHolder* keys = dynamic_cast<NifOsg::TextKeyMapHolder*>(obj))
-                {
-                    for (NifOsg::TextKeyMap::const_iterator it = keys->mTextKeys.begin(); it != keys->mTextKeys.end(); ++it)
-                    {
-                        if (Misc::StringUtils::ciEqual(it->second, "talk: start"))
-                            mHeadAnimationTime->setTalkStart(it->first);
-                        if (Misc::StringUtils::ciEqual(it->second, "talk: stop"))
-                            mHeadAnimationTime->setTalkStop(it->first);
-                        if (Misc::StringUtils::ciEqual(it->second, "blink: start"))
-                            mHeadAnimationTime->setBlinkStart(it->first);
-                        if (Misc::StringUtils::ciEqual(it->second, "blink: stop"))
-                            mHeadAnimationTime->setBlinkStop(it->first);
-                    }
+            src = mHeadAnimationTime;
 
-                    break;
+            if (node->getUserDataContainer())
+            {
+                for (unsigned int i=0; i<node->getUserDataContainer()->getNumUserObjects(); ++i)
+                {
+                    osg::Object* obj = node->getUserDataContainer()->getUserObject(i);
+                    if (NifOsg::TextKeyMapHolder* keys = dynamic_cast<NifOsg::TextKeyMapHolder*>(obj))
+                    {
+                        for (NifOsg::TextKeyMap::const_iterator it = keys->mTextKeys.begin(); it != keys->mTextKeys.end(); ++it)
+                        {
+                            if (Misc::StringUtils::ciEqual(it->second, "talk: start"))
+                                mHeadAnimationTime->setTalkStart(it->first);
+                            if (Misc::StringUtils::ciEqual(it->second, "talk: stop"))
+                                mHeadAnimationTime->setTalkStop(it->first);
+                            if (Misc::StringUtils::ciEqual(it->second, "blink: start"))
+                                mHeadAnimationTime->setBlinkStart(it->first);
+                            if (Misc::StringUtils::ciEqual(it->second, "blink: stop"))
+                                mHeadAnimationTime->setBlinkStop(it->first);
+                        }
+
+                        break;
+                    }
                 }
             }
         }
-    }
-    else if (type == ESM::PRT_Weapon)
-        src = mWeaponAnimationTime;
-    else
-        src.reset(new NullAnimationTime);
+        else if (type == ESM::PRT_Weapon)
+            src = mWeaponAnimationTime;
+        else
+            src.reset(new NullAnimationTime);
 
-    SceneUtil::AssignControllerSourcesVisitor assignVisitor(src);
-    mObjectParts[type]->getNode()->accept(assignVisitor);
+        SceneUtil::AssignControllerSourcesVisitor assignVisitor(src);
+        node->accept(assignVisitor);
+    }
 
     return true;
 }
@@ -888,6 +880,7 @@ void NpcAnimation::addControllers()
 void NpcAnimation::showWeapons(bool showWeapon)
 {
     mShowWeapons = showWeapon;
+    mAmmunition.reset();
     if(showWeapon)
     {
         MWWorld::InventoryStore& inv = mPtr.getClass().getInventoryStore(mPtr);
@@ -906,11 +899,7 @@ void NpcAnimation::showWeapons(bool showWeapon)
                 MWWorld::ContainerStoreIterator ammo = inv.getSlot(MWWorld::InventoryStore::Slot_Ammunition);
                 if (ammo != inv.end() && ammo->get<ESM::Weapon>()->mBase->mData.mType == ESM::Weapon::Bolt)
                     attachArrow();
-                else
-                    mAmmunition.reset();
             }
-            else
-                mAmmunition.reset();
         }
     }
     else

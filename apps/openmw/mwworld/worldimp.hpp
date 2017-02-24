@@ -34,6 +34,11 @@ namespace Resource
     class ResourceSystem;
 }
 
+namespace SceneUtil
+{
+    class WorkQueue;
+}
+
 namespace ESM
 {
     struct Position;
@@ -101,6 +106,8 @@ namespace MWWorld
             bool mScriptsEnabled;
             std::vector<std::string> mContentFiles;
 
+            std::string mUserDataPath;
+
             // not implemented
             World (const World&);
             World& operator= (const World&);
@@ -127,6 +134,8 @@ namespace MWWorld
             void updateSoundListener();
             void updateWindowManager ();
             void updatePlayer(bool paused);
+
+            void preloadSpells();
 
             MWWorld::Ptr getFacedObject(float maxDistance, bool ignorePlayer=true);
 
@@ -167,6 +176,8 @@ namespace MWWorld
             bool mGoToJail;
             int mDaysInPrison;
 
+            float mSpellPreloadTimer;
+
             float feetToGameUnits(float feet);
             float getActivationDistancePlusTelekinesis();
 
@@ -178,18 +189,16 @@ namespace MWWorld
             World (
                 osgViewer::Viewer* viewer,
                 osg::ref_ptr<osg::Group> rootNode,
-                Resource::ResourceSystem* resourceSystem,
+                Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
                 const Files::Collections& fileCollections,
                 const std::vector<std::string>& contentFiles,
                 ToUTF8::Utf8Encoder* encoder, const std::map<std::string,std::string>& fallbackMap,
-                int activationDistanceOverride, const std::string& startCell, const std::string& startupScript, const std::string& resourcePath);
+                int activationDistanceOverride, const std::string& startCell, const std::string& startupScript, const std::string& resourcePath, const std::string& userDataPath);
 
             virtual ~World();
 
             virtual void startNewGame (bool bypass);
             ///< \param bypass Bypass regular game start.
-
-            virtual void preloadCommonAssets();
 
             virtual void clear();
 
@@ -354,7 +363,7 @@ namespace MWWorld
             /// Returns a pointer to the object the provided object would hit (if within the
             /// specified distance), and the point where the hit occurs. This will attempt to
             /// use the "Head" node as a basis.
-            virtual std::pair<MWWorld::Ptr,osg::Vec3f> getHitContact(const MWWorld::ConstPtr &ptr, float distance);
+            virtual std::pair<MWWorld::Ptr,osg::Vec3f> getHitContact(const MWWorld::ConstPtr &ptr, float distance, std::vector<MWWorld::Ptr> &targets);
 
             /// @note No-op for items in containers. Use ContainerStore::removeItem instead.
             virtual void deleteObject (const Ptr& ptr);
@@ -637,8 +646,9 @@ namespace MWWorld
 
             virtual void spawnEffect (const std::string& model, const std::string& textureOverride, const osg::Vec3f& worldPos);
 
-            virtual void explodeSpell (const osg::Vec3f& origin, const ESM::EffectList& effects, const MWWorld::Ptr& caster,
-                                       const MWWorld::Ptr& ignore, ESM::RangeType rangeType, const std::string& id, const std::string& sourceName);
+            virtual void explodeSpell(const osg::Vec3f& origin, const ESM::EffectList& effects, const MWWorld::Ptr& caster, const MWWorld::Ptr& ignore,
+                                      ESM::RangeType rangeType, const std::string& id, const std::string& sourceName,
+                                      const bool fromProjectile=false);
 
             virtual void activate (const MWWorld::Ptr& object, const MWWorld::Ptr& actor);
 
@@ -667,6 +677,13 @@ namespace MWWorld
 
             /// Return physical or rendering half extents of the given actor.
             virtual osg::Vec3f getHalfExtents(const MWWorld::ConstPtr& actor, bool rendering=false) const;
+
+            /// Export scene graph to a file and return the filename.
+            /// \param ptr object to export scene graph for (if empty, export entire scene graph)
+            virtual std::string exportSceneGraph(const MWWorld::Ptr& ptr);
+
+            /// Preload VFX associated with this effect list
+            virtual void preloadEffects(const ESM::EffectList* effectList);
     };
 }
 

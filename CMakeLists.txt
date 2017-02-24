@@ -25,7 +25,7 @@ endif()
 message(STATUS "Configuring OpenMW...")
 
 set(OPENMW_VERSION_MAJOR 0)
-set(OPENMW_VERSION_MINOR 40)
+set(OPENMW_VERSION_MINOR 41)
 set(OPENMW_VERSION_RELEASE 0)
 
 set(OPENMW_VERSION_COMMITHASH "")
@@ -254,11 +254,16 @@ IF(BOOST_STATIC)
     set(Boost_USE_STATIC_LIBS   ON)
 endif()
 
+set(REQUIRED_BULLET_VERSION 286) # Bullet 286 required due to runtime bugfixes for btCapsuleShape
+if (DEFINED ENV{TRAVIS_BRANCH} OR DEFINED ENV{APPVEYOR})
+    set(REQUIRED_BULLET_VERSION 283) # but for build testing, 283 is fine
+endif()
+
 find_package(Boost REQUIRED COMPONENTS ${BOOST_COMPONENTS})
 find_package(MyGUI 3.2.1 REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(OpenAL REQUIRED)
-find_package(Bullet 283 REQUIRED COMPONENTS BulletCollision LinearMath)
+find_package(Bullet ${REQUIRED_BULLET_VERSION} REQUIRED COMPONENTS BulletCollision LinearMath)
 
 include_directories("."
     SYSTEM

@@ -70,12 +70,14 @@ std::string getBestAttack (const ESM::Weapon* weapon)
     int slash = (weapon->mData.mSlash[0] + weapon->mData.mSlash[1])/2;
     int chop = (weapon->mData.mChop[0] + weapon->mData.mChop[1])/2;
     int thrust = (weapon->mData.mThrust[0] + weapon->mData.mThrust[1])/2;
-    if (slash >= chop && slash >= thrust)
+    if (slash == chop && slash == thrust)
         return "slash";
-    else if (chop >= slash && chop >= thrust)
-        return "chop";
-    else
+    else if (thrust >= chop && thrust >= slash)
         return "thrust";
+    else if (slash >= chop && slash >= thrust)
+        return "slash";
+    else
+        return "chop";
 }
 
 // Converts a movement Run state to its equivalent Walk state.
@@ -1049,6 +1051,9 @@ bool CharacterController::updateCreatureState()
                 mUpperBodyState = UpperCharState_StartToMinAttack;
 
                 mAttackStrength = std::min(1.f, 0.1f + Misc::Rng::rollClosedProbability());
+
+                if (weapType == WeapType_HandToHand)
+                    playSwishSound(0.0f);
             }
         }
 
@@ -1370,13 +1375,7 @@ bool CharacterController::updateWeaponState()
                 }
                 else
                 {
-                    std::string sound = "SwishM";
-                    if(attackStrength < 0.5f)
-                        sndMgr->playSound3D(mPtr, sound, 1.0f, 0.8f); //Weak attack
-                    else if(attackStrength < 1.0f)
-                        sndMgr->playSound3D(mPtr, sound, 1.0f, 1.0f); //Medium attack
-                    else
-                        sndMgr->playSound3D(mPtr, sound, 1.0f, 1.2f); //Strong attack
+                    playSwishSound(attackStrength);
                 }
             }
             mAttackStrength = attackStrength;
@@ -1873,10 +1872,14 @@ void CharacterController::update(float duration)
         {
             if(mHitState != CharState_KnockDown && mHitState != CharState_KnockOut)
             {
-                world->rotateObject(mPtr, rot.x(), rot.y(), rot.z(), true);
+                if (rot != osg::Vec3f())
+                    world->rotateObject(mPtr, rot.x(), rot.y(), rot.z(), true);
             }
             else //avoid z-rotating for knockdown
-                world->rotateObject(mPtr, rot.x(), rot.y(), 0.0f, true);
+            {
+                if (rot.x() != 0 && rot.y() != 0)
+                    world->rotateObject(mPtr, rot.x(), rot.y(), 0.0f, true);
+            }
 
             if (!mMovementAnimationControlled)
                 world->queueMovement(mPtr, vec);
@@ -2269,6 +2272,19 @@ void CharacterController::setActive(bool active)
 void CharacterController::setHeadTrackTarget(const MWWorld::ConstPtr &target)
 {
     mHeadTrackTarget = target;
+}
+
+void CharacterController::playSwishSound(float attackStrength)
+{
+    MWBase::SoundManager *sndMgr = MWBase::Environment::get().getSoundManager();
+
+    std::string sound = "Weapon Swish";
+    if(attackStrength < 0.5f)
+        sndMgr->playSound3D(mPtr, sound, 1.0f, 0.8f); //Weak attack
+    else if(attackStrength < 1.0f)
+        sndMgr->playSound3D(mPtr, sound, 1.0f, 1.0f); //Medium attack
+    else
+        sndMgr->playSound3D(mPtr, sound, 1.0f, 1.2f); //Strong attack
 }
 
 void CharacterController::updateHeadTracking(float duration)

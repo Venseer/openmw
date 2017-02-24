@@ -271,6 +271,9 @@ namespace MWWorld
 
             virtual std::string getModel(const MWWorld::ConstPtr &ptr) const;
 
+            virtual bool useAnim() const;
+            ///< Whether or not to use animated variant of model (default false)
+
             virtual void getModelsToPreload(const MWWorld::Ptr& ptr, std::vector<std::string>& models) const;
             ///< Get a list of models to preload that this object may use (directly or indirectly). default implementation: list getModel().
 
@@ -353,7 +356,7 @@ namespace MWWorld
             virtual int getPrimaryFactionRank (const MWWorld::ConstPtr& ptr) const;
 
             /// Get the effective armor rating, factoring in the actor's skills, for the given armor.
-            virtual int getEffectiveArmorRating(const MWWorld::ConstPtr& armor, const MWWorld::Ptr& actor) const;
+            virtual float getEffectiveArmorRating(const MWWorld::ConstPtr& armor, const MWWorld::Ptr& actor) const;
     };
 }
 

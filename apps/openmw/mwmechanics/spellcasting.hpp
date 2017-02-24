@@ -63,7 +63,11 @@ namespace MWMechanics
 
     int getEffectiveEnchantmentCastCost (float castCost, const MWWorld::Ptr& actor);
 
-    void effectTick(CreatureStats& creatureStats, const MWWorld::Ptr& actor, const MWMechanics::EffectKey& effectKey, float magnitude);
+    /// Apply a magic effect that is applied in tick intervals until its remaining time ends or it is removed
+    /// @return Was the effect a tickable effect with a magnitude?
+    bool effectTick(CreatureStats& creatureStats, const MWWorld::Ptr& actor, const MWMechanics::EffectKey& effectKey, float magnitude);
+
+    std::string getSummonedCreature(int effectId);
 
     class CastSpell
     {
@@ -76,9 +80,10 @@ namespace MWMechanics
         std::string mSourceName; // Display name for spell, potion, etc
         osg::Vec3f mHitPosition; // Used for spawning area orb
         bool mAlwaysSucceed; // Always succeed spells casted by NPCs/creatures regardless of their chance (default: false)
+        bool mFromProjectile; // True if spell is cast by enchantment of some projectile (arrow, bolt or thrown weapon)
 
     public:
-        CastSpell(const MWWorld::Ptr& caster, const MWWorld::Ptr& target);
+        CastSpell(const MWWorld::Ptr& caster, const MWWorld::Ptr& target, const bool fromProjectile=false);
 
         bool cast (const ESM::Spell* spell);
 

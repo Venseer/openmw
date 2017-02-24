@@ -2,10 +2,12 @@
 
 #include <stdexcept>
 #include <limits>
+#include <cstdlib>
 
 #include <osg/Light>
 #include <osg/LightModel>
 #include <osg/Fog>
+#include <osg/Material>
 #include <osg/PolygonMode>
 #include <osg/Group>
 #include <osg/UserDataContainer>
@@ -19,6 +21,7 @@
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/imagemanager.hpp>
 #include <components/resource/scenemanager.hpp>
+#include <components/resource/keyframemanager.hpp>
 
 #include <components/settings/settings.hpp>
 
@@ -28,6 +31,7 @@
 #include <components/sceneutil/positionattitudetransform.hpp>
 #include <components/sceneutil/workqueue.hpp>
 #include <components/sceneutil/unrefqueue.hpp>
+#include <components/sceneutil/writescene.hpp>
 
 #include <components/terrain/terraingrid.hpp>
 
@@ -138,25 +142,35 @@ namespace MWRender
 
         virtual void doWork()
         {
-            for (std::vector<std::string>::const_iterator it = mModels.begin(); it != mModels.end(); ++it)
-                mResourceSystem->getSceneManager()->getTemplate(*it);
-            for (std::vector<std::string>::const_iterator it = mTextures.begin(); it != mTextures.end(); ++it)
-                mResourceSystem->getImageManager()->getImage(*it);
+            try
+            {
+                for (std::vector<std::string>::const_iterator it = mModels.begin(); it != mModels.end(); ++it)
+                    mResourceSystem->getSceneManager()->cacheInstance(*it);
+                for (std::vector<std::string>::const_iterator it = mTextures.begin(); it != mTextures.end(); ++it)
+                    mResourceSystem->getImageManager()->getImage(*it);
+                for (std::vector<std::string>::const_iterator it = mKeyframes.begin(); it != mKeyframes.end(); ++it)
+                    mResourceSystem->getKeyframeManager()->get(*it);
+            }
+            catch (std::exception&)
+            {
+                // ignore error (will be shown when these are needed proper)
+            }
         }
 
         std::vector<std::string> mModels;
         std::vector<std::string> mTextures;
+        std::vector<std::string> mKeyframes;
 
     private:
         Resource::ResourceSystem* mResourceSystem;
     };
 
-    RenderingManager::RenderingManager(osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode, Resource::ResourceSystem* resourceSystem,
+    RenderingManager::RenderingManager(osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode, Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
                                        const Fallback::Map* fallback, const std::string& resourcePath)
         : mViewer(viewer)
         , mRootNode(rootNode)
         , mResourceSystem(resourceSystem)
-        , mWorkQueue(new SceneUtil::WorkQueue)
+        , mWorkQueue(workQueue)
         , mUnrefQueue(new SceneUtil::UnrefQueue)
         , mFogDepth(0.f)
         , mUnderwaterColor(fallback->getFallbackColour("Water_UnderwaterColor"))
@@ -189,7 +203,8 @@ namespace MWRender
 
         mObjects.reset(new Objects(mResourceSystem, sceneRoot, mUnrefQueue.get()));
 
-        mViewer->setIncrementalCompileOperation(new osgUtil::IncrementalCompileOperation);
+        if (getenv("OPENMW_DONT_PRECOMPILE") == NULL)
+            mViewer->setIncrementalCompileOperation(new osgUtil::IncrementalCompileOperation);
 
         mResourceSystem->getSceneManager()->setIncrementalCompileOperation(mViewer->getIncrementalCompileOperation());
 
@@ -220,6 +235,12 @@ namespace MWRender
         sceneRoot->getOrCreateStateSet()->setMode(GL_CULL_FACE, osg::StateAttribute::ON);
         sceneRoot->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::ON);
         sceneRoot->getOrCreateStateSet()->setMode(GL_NORMALIZE, osg::StateAttribute::ON);
+        osg::ref_ptr<osg::Material> defaultMat (new osg::Material);
+        defaultMat->setColorMode(osg::Material::OFF);
+        defaultMat->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4f(1,1,1,1));
+        defaultMat->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4f(1,1,1,1));
+        defaultMat->setSpecular(osg::Material::FRONT_AND_BACK, osg::Vec4f(0.f, 0.f, 0.f, 0.f));
+        sceneRoot->getOrCreateStateSet()->setAttribute(defaultMat);
 
         sceneRoot->setNodeMask(Mask_Scene);
         sceneRoot->setName("Scene Root");
@@ -236,7 +257,10 @@ namespace MWRender
         if (!Settings::Manager::getBool("small feature culling", "Camera"))
             cullingMode &= ~(osg::CullStack::SMALL_FEATURE_CULLING);
         else
+        {
+            mViewer->getCamera()->setSmallFeatureCullingPixelSize(Settings::Manager::getFloat("small feature culling pixel size", "Camera"));
             cullingMode |= osg::CullStack::SMALL_FEATURE_CULLING;
+        }
 
         mViewer->getCamera()->setCullingMode( cullingMode );
 
@@ -292,6 +316,13 @@ namespace MWRender
         osg::ref_ptr<PreloadCommonAssetsWorkItem> workItem (new PreloadCommonAssetsWorkItem(mResourceSystem));
         mSky->listAssetsToPreload(workItem->mModels, workItem->mTextures);
         mWater->listAssetsToPreload(workItem->mTextures);
+
+        const char* basemodels[] = {"xbase_anim", "xbase_anim.1st", "xbase_anim_female", "xbase_animkna"};
+        for (size_t i=0; i<sizeof(basemodels)/sizeof(basemodels[0]); ++i)
+        {
+            workItem->mModels.push_back(std::string("meshes/") + basemodels[i] + ".nif");
+            workItem->mKeyframes.push_back(std::string("meshes/") + basemodels[i] + ".kf");
+        }
 
         workItem->mTextures.push_back("textures/_land_default.dds");
 
@@ -420,14 +451,6 @@ namespace MWRender
             mViewer->getCamera()->setCullMask(mask);
             return enabled;
         }
-        /*
-        else //if (mode == Render_BoundingBoxes)
-        {
-            bool show = !mRendering.getScene()->getShowBoundingBoxes();
-            mRendering.getScene()->showBoundingBoxes(show);
-            return show;
-        }
-        */
         return false;
     }
 
@@ -452,6 +475,8 @@ namespace MWRender
 
     void RenderingManager::update(float dt, bool paused)
     {
+        reportStats();
+
         mUnrefQueue->flush(mWorkQueue.get());
 
         if (!paused)
@@ -782,6 +807,7 @@ namespace MWRender
         {
             mPlayerNode = new SceneUtil::PositionAttitudeTransform;
             mPlayerNode->setNodeMask(Mask_Player);
+            mPlayerNode->setName("Player Root");
             mSceneRoot->addChild(mPlayerNode);
         }
 
@@ -795,8 +821,8 @@ namespace MWRender
 
     void RenderingManager::renderPlayer(const MWWorld::Ptr &player)
     {
-        mPlayerAnimation.reset(new NpcAnimation(player, player.getRefData().getBaseNode(), mResourceSystem, 0, false, NpcAnimation::VM_Normal,
-                                                mFirstPersonFieldOfView));
+        mPlayerAnimation = new NpcAnimation(player, player.getRefData().getBaseNode(), mResourceSystem, 0, NpcAnimation::VM_Normal,
+                                                mFirstPersonFieldOfView);
 
         mCamera->setAnimation(mPlayerAnimation.get());
         mCamera->attachTo(player);
@@ -875,6 +901,18 @@ namespace MWRender
         mViewer->getCamera()->setClearColor(color);
 
         mStateUpdater->setFogColor(color);
+    }
+
+    void RenderingManager::reportStats()
+    {
+        osg::Stats* stats = mViewer->getViewerStats();
+        unsigned int frameNumber = mViewer->getFrameStamp()->getFrameNumber();
+        if (stats->collectStats("resource"))
+        {
+            stats->setAttribute(frameNumber, "UnrefQueue", mUnrefQueue->getNumItems());
+
+            mTerrain->reportStats(frameNumber, stats);
+        }
     }
 
     void RenderingManager::processChangedSettings(const Settings::CategorySettingVector &changed)
@@ -1002,8 +1040,17 @@ namespace MWRender
         if (mFieldOfViewOverridden == true)
         {
             mFieldOfViewOverridden = false;
+
             updateProjectionMatrix();
         }
+    }
+    void RenderingManager::exportSceneGraph(const MWWorld::Ptr &ptr, const std::string &filename, const std::string &format)
+    {
+        osg::Node* node = mViewer->getSceneData();
+        if (!ptr.isEmpty())
+            node = ptr.getRefData().getBaseNode();
+
+        SceneUtil::writeScene(node, filename, format);
     }
 
 }

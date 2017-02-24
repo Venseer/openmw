@@ -63,7 +63,7 @@ namespace MWRender
     class RenderingManager : public MWRender::RenderingInterface
     {
     public:
-        RenderingManager(osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode, Resource::ResourceSystem* resourceSystem,
+        RenderingManager(osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode, Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
                          const Fallback::Map* fallback, const std::string& resourcePath);
         ~RenderingManager();
 
@@ -188,11 +188,15 @@ namespace MWRender
         /// reset a previous overrideFieldOfView() call, i.e. revert to field of view specified in the settings file.
         void resetFieldOfView();
 
+        void exportSceneGraph(const MWWorld::Ptr& ptr, const std::string& filename, const std::string& format);
+
     private:
         void updateProjectionMatrix();
         void updateTextureFiltering();
         void updateAmbient();
         void setFogColor(const osg::Vec4f& color);
+
+        void reportStats();
 
         osg::ref_ptr<osgViewer::Viewer> mViewer;
         osg::ref_ptr<osg::Group> mRootNode;
@@ -210,7 +214,7 @@ namespace MWRender
         std::auto_ptr<Terrain::World> mTerrain;
         std::auto_ptr<SkyManager> mSky;
         std::auto_ptr<EffectManager> mEffectManager;
-        std::auto_ptr<NpcAnimation> mPlayerAnimation;
+        osg::ref_ptr<NpcAnimation> mPlayerAnimation;
         osg::ref_ptr<SceneUtil::PositionAttitudeTransform> mPlayerNode;
         std::auto_ptr<Camera> mCamera;
         osg::Vec3f mCurrentCameraPos;

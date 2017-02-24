@@ -16,6 +16,11 @@ namespace Terrain
     class World;
 }
 
+namespace SceneUtil
+{
+    class UnrefQueue;
+}
+
 namespace MWWorld
 {
     class CellStore;
@@ -31,6 +36,8 @@ namespace MWWorld
         void preload(MWWorld::CellStore* cell, double timestamp);
 
         void notifyLoaded(MWWorld::CellStore* cell);
+
+        void clear();
 
         /// Removes preloaded cells that have not had a preload request for a while.
         void updateCache(double timestamp);
@@ -51,15 +58,20 @@ namespace MWWorld
 
         void setWorkQueue(osg::ref_ptr<SceneUtil::WorkQueue> workQueue);
 
+        void setUnrefQueue(SceneUtil::UnrefQueue* unrefQueue);
+
     private:
         Resource::ResourceSystem* mResourceSystem;
         Resource::BulletShapeManager* mBulletShapeManager;
         Terrain::World* mTerrain;
         osg::ref_ptr<SceneUtil::WorkQueue> mWorkQueue;
+        osg::ref_ptr<SceneUtil::UnrefQueue> mUnrefQueue;
         double mExpiryDelay;
         unsigned int mMinCacheSize;
         unsigned int mMaxCacheSize;
         bool mPreloadInstances;
+
+        double mLastResourceCacheUpdate;
 
         struct PreloadEntry
         {

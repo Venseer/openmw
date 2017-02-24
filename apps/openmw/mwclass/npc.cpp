@@ -566,8 +566,13 @@ namespace MWClass
                                weapon.get<ESM::Weapon>()->mBase->mData.mReach :
                                store.find("fHandToHandReach")->getFloat());
 
+        // For AI actors, get combat targets to use in the ray cast. Only those targets will return a positive hit result.
+        std::vector<MWWorld::Ptr> targetActors;
+        if (!ptr.isEmpty() && ptr.getClass().isActor() && ptr != MWMechanics::getPlayer())
+            ptr.getClass().getCreatureStats(ptr).getAiSequence().getCombatTargets(targetActors);
+
         // TODO: Use second to work out the hit angle
-        std::pair<MWWorld::Ptr, osg::Vec3f> result = world->getHitContact(ptr, dist);
+        std::pair<MWWorld::Ptr, osg::Vec3f> result = world->getHitContact(ptr, dist, targetActors);
         MWWorld::Ptr victim = result.first;
         osg::Vec3f hitPosition (result.second);
         if(victim.isEmpty()) // Didn't hit anything
@@ -654,22 +659,38 @@ namespace MWClass
     void Npc::onHit(const MWWorld::Ptr &ptr, float damage, bool ishealth, const MWWorld::Ptr &object, const MWWorld::Ptr &attacker, const osg::Vec3f &hitPosition, bool successful) const
     {
         MWBase::SoundManager *sndMgr = MWBase::Environment::get().getSoundManager();
-
-        // NOTE: 'object' and/or 'attacker' may be empty.
-
-        bool wasDead = getCreatureStats(ptr).isDead();
+        MWMechanics::CreatureStats& stats = ptr.getClass().getCreatureStats(ptr);
+        bool wasDead = stats.isDead();
 
         // Note OnPcHitMe is not set for friendly hits.
         bool setOnPcHitMe = true;
-        if (!attacker.isEmpty() && !ptr.getClass().getCreatureStats(ptr).getAiSequence().isInCombat(attacker))
-        {
-            getCreatureStats(ptr).setAttacked(true);
 
+        // NOTE: 'object' and/or 'attacker' may be empty.
+        if (!attacker.isEmpty() && attacker.getClass().isActor() && !stats.getAiSequence().isInCombat(attacker))
+        {
+            stats.setAttacked(true);
             setOnPcHitMe = MWBase::Environment::get().getMechanicsManager()->actorAttacked(ptr, attacker);
         }
 
+        // Attacker and target store each other as hitattemptactor if they have no one stored yet
+        if (!attacker.isEmpty() && attacker.getClass().isActor() && !ptr.isEmpty() && ptr.getClass().isActor())
+        {
+            MWMechanics::CreatureStats& statsAttacker = attacker.getClass().getCreatureStats(attacker);
+            // First handle the attacked actor
+            if ((stats.getHitAttemptActorId() == -1)
+                && (statsAttacker.getAiSequence().isInCombat(ptr)
+                    || attacker == MWMechanics::getPlayer()))
+                stats.setHitAttemptActorId(statsAttacker.getActorId());
+
+            // Next handle the attacking actor
+            if ((statsAttacker.getHitAttemptActorId() == -1)
+                && (statsAttacker.getAiSequence().isInCombat(ptr)
+                    || attacker == MWMechanics::getPlayer()))
+                statsAttacker.setHitAttemptActorId(stats.getActorId());
+        }
+
         if (!object.isEmpty())
-            getCreatureStats(ptr).setLastHitAttemptObject(object.getCellRef().getRefId());
+            stats.setLastHitAttemptObject(object.getCellRef().getRefId());
 
         if (setOnPcHitMe && !attacker.isEmpty() && attacker == MWMechanics::getPlayer())
         {
@@ -687,7 +708,7 @@ namespace MWClass
         }
 
         if (!object.isEmpty())
-            getCreatureStats(ptr).setLastHitObject(object.getCellRef().getRefId());
+            stats.setLastHitObject(object.getCellRef().getRefId());
 
 
         if (damage > 0.0f && !object.isEmpty())
@@ -706,21 +727,16 @@ namespace MWClass
 
             int chance = store.get<ESM::GameSetting>().find("iVoiceHitOdds")->getInt();
             if (Misc::Rng::roll0to99() < chance)
-            {
                 MWBase::Environment::get().getDialogueManager()->say(ptr, "hit");
-            }
 
             // Check for knockdown
-            float agilityTerm = getCreatureStats(ptr).getAttribute(ESM::Attribute::Agility).getModified() * gmst.fKnockDownMult->getFloat();
-            float knockdownTerm = getCreatureStats(ptr).getAttribute(ESM::Attribute::Agility).getModified()
+            float agilityTerm = stats.getAttribute(ESM::Attribute::Agility).getModified() * gmst.fKnockDownMult->getFloat();
+            float knockdownTerm = stats.getAttribute(ESM::Attribute::Agility).getModified()
                     * gmst.iKnockDownOddsMult->getInt() * 0.01f + gmst.iKnockDownOddsBase->getInt();
             if (ishealth && agilityTerm <= damage && knockdownTerm <= Misc::Rng::roll0to99())
-            {
-                getCreatureStats(ptr).setKnockedDown(true);
-
-            }
+                stats.setKnockedDown(true);
             else
-                getCreatureStats(ptr).setHitRecovery(true); // Is this supposed to always occur?
+                stats.setHitRecovery(true); // Is this supposed to always occur?
 
             if (damage > 0 && ishealth)
             {
@@ -799,13 +815,13 @@ namespace MWClass
             }
             MWMechanics::DynamicStat<float> health(getCreatureStats(ptr).getHealth());
             health.setCurrent(health.getCurrent() - damage);
-            getCreatureStats(ptr).setHealth(health);
+            stats.setHealth(health);
         }
         else
         {
             MWMechanics::DynamicStat<float> fatigue(getCreatureStats(ptr).getFatigue());
             fatigue.setCurrent(fatigue.getCurrent() - damage, true);
-            getCreatureStats(ptr).setFatigue(fatigue);
+            stats.setFatigue(fatigue);
         }
 
         if (!wasDead && getCreatureStats(ptr).isDead())
@@ -1069,14 +1085,14 @@ namespace MWClass
         float fUnarmoredBase2 = store.find("fUnarmoredBase2")->getFloat();
         int unarmoredSkill = stats.getSkill(ESM::Skill::Unarmored).getModified();
 
-        int ratings[MWWorld::InventoryStore::Slots];
+        float ratings[MWWorld::InventoryStore::Slots];
         for(int i = 0;i < MWWorld::InventoryStore::Slots;i++)
         {
             MWWorld::ContainerStoreIterator it = invStore.getSlot(i);
             if (it == invStore.end() || it->getTypeName() != typeid(ESM::Armor).name())
             {
                 // unarmored
-                ratings[i] = static_cast<int>((fUnarmoredBase1 * unarmoredSkill) * (fUnarmoredBase2 * unarmoredSkill));
+                ratings[i] = (fUnarmoredBase1 * unarmoredSkill) * (fUnarmoredBase2 * unarmoredSkill);
             }
             else
             {

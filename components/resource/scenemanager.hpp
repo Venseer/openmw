@@ -15,11 +15,17 @@ namespace Resource
 {
     class ImageManager;
     class NifFileManager;
+    class SharedStateManager;
 }
 
 namespace osgUtil
 {
     class IncrementalCompileOperation;
+}
+
+namespace osgDB
+{
+    class SharedStateManager;
 }
 
 namespace Shader
@@ -72,6 +78,9 @@ namespace Resource
 
         void setShaderPath(const std::string& path);
 
+        /// Check if a given scene is loaded and if so, update its usage timestamp to prevent it from being unloaded
+        bool checkLoaded(const std::string& name, double referenceTime);
+
         /// Get a read-only copy of this scene "template"
         /// @note If the given filename does not exist or fails to load, an error marker mesh will be used instead.
         ///  If even the error marker mesh can not be found, an exception is thrown.
@@ -108,9 +117,6 @@ namespace Resource
         /// Set up an IncrementalCompileOperation for background compiling of loaded scenes.
         void setIncrementalCompileOperation(osgUtil::IncrementalCompileOperation* ico);
 
-        /// @note SceneManager::attachTo calls this method automatically, only needs to be called by users if manually attaching
-        void notifyAttached(osg::Node* node) const;
-
         Resource::ImageManager* getImageManager();
 
         /// @param mask The node mask to apply to loaded particle system nodes.
@@ -131,6 +137,8 @@ namespace Resource
         /// @see ResourceManager::updateCache
         virtual void updateCache(double referenceTime);
 
+        virtual void reportStats(unsigned int frameNumber, osg::Stats* stats);
+
     private:
 
         osg::ref_ptr<osg::Node> createInstance(const std::string& name);
@@ -147,6 +155,7 @@ namespace Resource
 
         osg::ref_ptr<MultiObjectCache> mInstanceCache;
 
+        osg::ref_ptr<Resource::SharedStateManager> mSharedStateManager;
         OpenThreads::Mutex mSharedStateMutex;
 
         Resource::ImageManager* mImageManager;

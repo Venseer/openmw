@@ -58,9 +58,6 @@ public:
 
     ~PartHolder();
 
-    /// Unreferences mNode *without* detaching it from the graph. Only use if you know what you are doing.
-    void unlink();
-
     osg::ref_ptr<osg::Node> getNode()
     {
         return mNode;
@@ -74,7 +71,7 @@ private:
 };
 typedef boost::shared_ptr<PartHolder> PartHolderPtr;
 
-class Animation
+class Animation : public osg::Referenced
 {
 public:
     enum BoneGroup {
@@ -274,6 +271,8 @@ protected:
 
     float mAlpha;
 
+    mutable std::map<std::string, float> mAnimVelocities;
+
     osg::ref_ptr<SceneUtil::LightListCallback> mLightListCallback;
 
     const NodeMap& getNodeMap() const;
@@ -302,7 +301,7 @@ protected:
 
     /** Sets the root model of the object.
      *
-     * Note that you must make sure all animation sources are cleared before reseting the object
+     * Note that you must make sure all animation sources are cleared before resetting the object
      * root. All nodes previously retrieved with getNode will also become invalidated.
      * @param forceskeleton Wrap the object root in a Skeleton, even if it contains no skinned parts. Use this if you intend to add skinned parts manually.
      * @param baseonly If true, then any meshes or particle systems in the model are ignored
@@ -337,9 +336,13 @@ protected:
 public:
 
     Animation(const MWWorld::Ptr &ptr, osg::ref_ptr<osg::Group> parentNode, Resource::ResourceSystem* resourceSystem);
+
+    /// Must be thread safe
     virtual ~Animation();
 
     MWWorld::ConstPtr getPtr() const;
+
+    MWWorld::Ptr getPtr();
 
     /// Set active flag on the object skeleton, if one exists.
     /// @see SceneUtil::Skeleton::setActive

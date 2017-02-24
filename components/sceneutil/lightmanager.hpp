@@ -32,7 +32,7 @@ namespace SceneUtil
 
     public:
 
-        META_Node(SceneUtil, SceneUtil::LightSource)
+        META_Node(SceneUtil, LightSource)
 
         LightSource();
 
@@ -64,7 +64,7 @@ namespace SceneUtil
         void setLight(osg::Light* light)
         {
             mLight[0] = light;
-            mLight[1] = osg::clone(light);
+            mLight[1] = new osg::Light(*light);
         }
 
         /// Get the unique ID for this light source.
@@ -79,7 +79,7 @@ namespace SceneUtil
     {
     public:
 
-        META_Node(SceneUtil, SceneUtil::LightManager)
+        META_Node(SceneUtil, LightManager)
 
         LightManager();
 

@@ -200,6 +200,15 @@ namespace
             applyImpl(drw);
         }
 
+        virtual void apply(osg::Group& node)
+        {
+            traverse(node);
+        }
+        virtual void apply(osg::MatrixTransform& node)
+        {
+            traverse(node);
+        }
+
         void applyImpl(osg::Node& node)
         {
             osg::NodePath::iterator parent = getNodePath().end()-2;
@@ -229,6 +238,15 @@ namespace
         virtual void apply(osg::Drawable& drw)
         {
             applyImpl(drw);
+        }
+
+        virtual void apply(osg::Group& node)
+        {
+            traverse(node);
+        }
+        virtual void apply(osg::MatrixTransform& node)
+        {
+            traverse(node);
         }
 
         void applyImpl(osg::Node& node)
@@ -446,6 +464,11 @@ namespace MWRender
         return mPtr;
     }
 
+    MWWorld::Ptr Animation::getPtr()
+    {
+        return mPtr;
+    }
+
     void Animation::setActive(bool active)
     {
         if (mSkeleton)
@@ -534,7 +557,7 @@ namespace MWRender
             size_t blendMask = detectBlendMask(node);
 
             // clone the controller, because each Animation needs its own ControllerSource
-            osg::ref_ptr<NifOsg::KeyframeController> cloned = osg::clone(it->second.get(), osg::CopyOp::DEEP_COPY_ALL);
+            osg::ref_ptr<NifOsg::KeyframeController> cloned = new NifOsg::KeyframeController(*it->second, osg::CopyOp::SHALLOW_COPY);
             cloned->setSource(mAnimationTimePtr[blendMask]);
 
             animsrc->mControllerMap[blendMask].insert(std::make_pair(bonename, cloned));
@@ -566,6 +589,8 @@ namespace MWRender
         mAccumCtrl = NULL;
 
         mAnimSources.clear();
+
+        mAnimVelocities.clear();
     }
 
     bool Animation::hasAnimation(const std::string &anim) const
@@ -943,6 +968,10 @@ namespace MWRender
         if (!mAccumRoot)
             return 0.0f;
 
+        std::map<std::string, float>::const_iterator found = mAnimVelocities.find(groupname);
+        if (found != mAnimVelocities.end())
+            return found->second;
+
         // Look in reverse; last-inserted source has priority.
         AnimSourceList::const_reverse_iterator animsrc(mAnimSources.rbegin());
         for(;animsrc != mAnimSources.rend();++animsrc)
@@ -989,6 +1018,8 @@ namespace MWRender
                 }
             }
         }
+
+        mAnimVelocities.insert(std::make_pair(groupname, velocity));
 
         return velocity;
     }
@@ -1250,7 +1281,7 @@ namespace MWRender
             writableStateSet = node->getOrCreateStateSet();
         else
         {
-            writableStateSet = osg::clone(node->getStateSet(), osg::CopyOp::SHALLOW_COPY);
+            writableStateSet = new osg::StateSet(*node->getStateSet(), osg::CopyOp::SHALLOW_COPY);
             node->setStateSet(writableStateSet);
         }
         writableStateSet->setTextureAttributeAndModes(texUnit, textures.front(), osg::StateAttribute::ON);
@@ -1640,11 +1671,6 @@ namespace MWRender
                 std::cerr << "Warning: part has multiple parents " << mNode->getNumParents() << " " << mNode.get() << std::endl;
             mNode->getParent(0)->removeChild(mNode);
         }
-    }
-
-    void PartHolder::unlink()
-    {
-        mNode = NULL;
     }
 
 }

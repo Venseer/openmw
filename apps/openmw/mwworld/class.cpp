@@ -304,6 +304,11 @@ namespace MWWorld
         return "";
     }
 
+    bool Class::useAnim() const
+    {
+        return false;
+    }
+
     void Class::getModelsToPreload(const Ptr &ptr, std::vector<std::string> &models) const
     {
         std::string model = getModel(ptr);
@@ -482,7 +487,7 @@ namespace MWWorld
         return -1;
     }
 
-    int Class::getEffectiveArmorRating(const ConstPtr &armor, const Ptr &actor) const
+    float Class::getEffectiveArmorRating(const ConstPtr &armor, const Ptr &actor) const
     {
         throw std::runtime_error("class does not support armor ratings");
     }

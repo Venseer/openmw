@@ -74,8 +74,11 @@ namespace MWClass
                 MWBase::Environment::get().getWorld()->activateDoor(ptr, customData.mDoorState);
             }
         }
+    }
 
-        MWBase::Environment::get().getMechanicsManager()->add(ptr);
+    bool Door::useAnim() const
+    {
+        return true;
     }
 
     std::string Door::getModel(const MWWorld::ConstPtr &ptr) const
@@ -231,7 +234,7 @@ namespace MWClass
         if(lockLevel!=0)
             ptr.getCellRef().setLockLevel(abs(lockLevel)); //Changes lock to locklevel, in positive
         else
-            ptr.getCellRef().setLockLevel(abs(ptr.getCellRef().getLockLevel())); //No locklevel given, just flip the origional one
+            ptr.getCellRef().setLockLevel(abs(ptr.getCellRef().getLockLevel())); //No locklevel given, just flip the original one
     }
 
     void Door::unlock (const MWWorld::Ptr& ptr) const

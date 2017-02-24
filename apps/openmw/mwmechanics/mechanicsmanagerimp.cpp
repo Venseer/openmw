@@ -236,7 +236,7 @@ namespace MWMechanics
     : mWatchedTimeToStartDrowning(0), mWatchedStatsEmpty (true), mUpdatePlayer (true), mClassSelected (false),
       mRaceSelected (false), mAI(true)
     {
-        //buildPlayer no longer here, needs to be done explicitely after all subsystems are up and running
+        //buildPlayer no longer here, needs to be done explicitly after all subsystems are up and running
     }
 
     void MechanicsManager::add(const MWWorld::Ptr& ptr)
@@ -338,21 +338,15 @@ namespace MWMechanics
                 }
             }
 
-            bool update = false;
-
             //Loop over ESM::Skill::SkillEnum
             for(int i = 0; i < ESM::Skill::Length; ++i)
             {
                 if(stats.getSkill(i) != mWatchedSkills[i] || mWatchedStatsEmpty)
                 {
-                    update = true;
                     mWatchedSkills[i] = stats.getSkill(i);
                     winMgr->setValue((ESM::Skill::SkillEnum)i, stats.getSkill(i));
                 }
             }
-
-            if(update)
-                winMgr->updateSkillArea();
 
             winMgr->setValue("level", stats.getLevel());
 
@@ -978,18 +972,6 @@ namespace MWMechanics
     }
 
 
-    void getFollowers (const MWWorld::Ptr& actor, std::set<MWWorld::Ptr>& out)
-    {
-        std::list<MWWorld::Ptr> followers = MWBase::Environment::get().getMechanicsManager()->getActorsSidingWith(actor);
-        for(std::list<MWWorld::Ptr>::iterator it = followers.begin();it != followers.end();++it)
-        {
-            if (out.insert(*it).second)
-            {
-                getFollowers(*it, out);
-            }
-        }
-    }
-
     bool MechanicsManager::commitCrime(const MWWorld::Ptr &player, const MWWorld::Ptr &victim, OffenseType type, int arg, bool victimAware)
     {
         // NOTE: victim may be empty
@@ -1013,7 +995,7 @@ namespace MWMechanics
 
         // get the player's followers / allies (works recursively) that will not report crimes
         std::set<MWWorld::Ptr> playerFollowers;
-        getFollowers(player, playerFollowers);
+        getActorsSidingWith(player, playerFollowers);
 
         // Did anyone see it?
         bool crimeSeen = false;
@@ -1232,48 +1214,50 @@ namespace MWMechanics
         }
     }
 
-    bool MechanicsManager::actorAttacked(const MWWorld::Ptr &ptr, const MWWorld::Ptr &attacker)
+    bool MechanicsManager::actorAttacked(const MWWorld::Ptr &target, const MWWorld::Ptr &attacker)
     {
-        if (ptr == getPlayer())
+        if (target == getPlayer() || !attacker.getClass().isActor())
             return false;
 
-        std::list<MWWorld::Ptr> followers = getActorsSidingWith(attacker);
-        MWMechanics::CreatureStats& targetStats = ptr.getClass().getCreatureStats(ptr);
-        if (std::find(followers.begin(), followers.end(), ptr) != followers.end())
-        {
-            targetStats.friendlyHit();
+        std::list<MWWorld::Ptr> followersAttacker = getActorsSidingWith(attacker);
 
-            if (targetStats.getFriendlyHits() < 4)
+        MWMechanics::CreatureStats& statsTarget = target.getClass().getCreatureStats(target);
+
+        if (std::find(followersAttacker.begin(), followersAttacker.end(), target) != followersAttacker.end())
+        {
+            statsTarget.friendlyHit();
+
+            if (statsTarget.getFriendlyHits() < 4)
             {
-                MWBase::Environment::get().getDialogueManager()->say(ptr, "hit");
+                MWBase::Environment::get().getDialogueManager()->say(target, "hit");
                 return false;
             }
         }
 
         // Attacking an NPC that is already in combat with any other NPC is not a crime
-        AiSequence& seq = targetStats.getAiSequence();
+        AiSequence& seq = statsTarget.getAiSequence();
         bool isFightingNpc = false;
         for (std::list<AiPackage*>::const_iterator it = seq.begin(); it != seq.end(); ++it)
         {
             if ((*it)->getTypeId() == AiPackage::TypeIdCombat)
             {
-                MWWorld::Ptr target = (*it)->getTarget();
-                if (!target.isEmpty() && target.getClass().isNpc())
+                MWWorld::Ptr target2 = (*it)->getTarget();
+                if (!target2.isEmpty() && target2.getClass().isNpc())
                     isFightingNpc = true;
             }
         }
 
-        if (ptr.getClass().isNpc() && !attacker.isEmpty() && !seq.isInCombat(attacker)
-                && !isAggressive(ptr, attacker) && !isFightingNpc)
-            commitCrime(attacker, ptr, MWBase::MechanicsManager::OT_Assault);
+        if (target.getClass().isNpc() && !attacker.isEmpty() && !seq.isInCombat(attacker)
+                && !isAggressive(target, attacker) && !isFightingNpc)
+            commitCrime(attacker, target, MWBase::MechanicsManager::OT_Assault);
 
-        if (!attacker.isEmpty() && (attacker.getClass().getCreatureStats(attacker).getAiSequence().isInCombat(ptr)
+        if (!attacker.isEmpty() && (attacker.getClass().getCreatureStats(attacker).getAiSequence().isInCombat(target)
                                     || attacker == getPlayer())
                 && !seq.isInCombat(attacker))
         {
             // Attacker is in combat with us, but we are not in combat with the attacker yet. Time to fight back.
             // Note: accidental or collateral damage attacks are ignored.
-            startCombat(ptr, attacker);
+            startCombat(target, attacker);
         }
 
         return true;
@@ -1383,6 +1367,7 @@ namespace MWMechanics
             // if guard starts combat with player, guards pursuing player should do the same
             if (ptr.getClass().isClass(ptr, "Guard"))
             {
+                ptr.getClass().getCreatureStats(ptr).setHitAttemptActorId(target.getClass().getCreatureStats(target).getActorId()); // Stops guard from ending combat if player is unreachable
                 for (Actors::PtrActorMap::const_iterator iter = mActors.begin(); iter != mActors.end(); ++iter)
                 {
                     if (iter->first.getClass().isClass(iter->first, "Guard"))
@@ -1392,6 +1377,7 @@ namespace MWMechanics
                         {
                             aiSeq.stopPursuit();
                             aiSeq.stack(MWMechanics::AiCombat(target), ptr);
+                            iter->first.getClass().getCreatureStats(iter->first).setHitAttemptActorId(target.getClass().getCreatureStats(target).getActorId()); // Stops guard from ending combat if player is unreachable
                         }
                     }
                 }
@@ -1435,6 +1421,14 @@ namespace MWMechanics
 
     std::list<MWWorld::Ptr> MechanicsManager::getEnemiesNearby(const MWWorld::Ptr& actor) {
         return mActors.getEnemiesNearby(actor);
+    }
+
+    void MechanicsManager::getActorsFollowing(const MWWorld::Ptr& actor, std::set<MWWorld::Ptr>& out) {
+        mActors.getActorsFollowing(actor, out);
+    }
+
+    void MechanicsManager::getActorsSidingWith(const MWWorld::Ptr& actor, std::set<MWWorld::Ptr>& out) {
+        mActors.getActorsSidingWith(actor, out);
     }
 
     int MechanicsManager::countSavedGameRecords() const

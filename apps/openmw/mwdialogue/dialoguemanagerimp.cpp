@@ -48,7 +48,7 @@
 
 namespace MWDialogue
 {
-    DialogueManager::DialogueManager (const Compiler::Extensions& extensions, bool scriptVerbose, Translation::Storage& translationDataStorage) :
+    DialogueManager::DialogueManager (const Compiler::Extensions& extensions, Translation::Storage& translationDataStorage) :
       mTranslationDataStorage(translationDataStorage)
       , mCompilerContext (MWScript::CompilerContext::Type_Dialogue)
       , mErrorStream(std::cout.rdbuf())
@@ -174,7 +174,7 @@ namespace MWDialogue
                     executeScript (info->mResultScript);
                     mLastTopic = Misc::StringUtils::lowerCase(it->mId);
 
-                    // update topics again to accomodate changes resulting from executeScript
+                    // update topics again to accommodate changes resulting from executeScript
                     updateTopics();
 
                     return;
@@ -197,6 +197,8 @@ namespace MWDialogue
         try
         {
             mErrorHandler.reset();
+
+            mErrorHandler.setContext("[dialogue script]");
 
             std::istringstream input (cmd + "\n");
 
@@ -448,14 +450,14 @@ namespace MWDialogue
     {
         MWBase::Environment::get().getWindowManager()->removeGuiMode(MWGui::GM_Dialogue);
 
-        // Clamp permanent disposition change so that final disposition doesn't go below 0 (could happen with intimidate)       
-        float curDisp = static_cast<float>(MWBase::Environment::get().getMechanicsManager()->getDerivedDisposition(mActor, false));
-        if (curDisp + mPermanentDispositionChange < 0)
-            mPermanentDispositionChange = -curDisp;
-
         // Apply disposition change to NPC's base disposition
         if (mActor.getClass().isNpc())
         {
+            // Clamp permanent disposition change so that final disposition doesn't go below 0 (could happen with intimidate)       
+            float curDisp = static_cast<float>(MWBase::Environment::get().getMechanicsManager()->getDerivedDisposition(mActor, false));
+            if (curDisp + mPermanentDispositionChange < 0)
+                mPermanentDispositionChange = -curDisp;
+
             MWMechanics::NpcStats& npcStats = mActor.getClass().getNpcStats(mActor);
             npcStats.setBaseDisposition(static_cast<int>(npcStats.getBaseDisposition() + mPermanentDispositionChange));
         }
