@@ -27,6 +27,7 @@ namespace Compiler
         if (c=='\n')
         {
             mStrictKeywords = false;
+            mTolerantNames = false;
             mLoc.mColumn = 0;
             ++mLoc.mLine;
             mLoc.mLiteral.clear();
@@ -363,7 +364,7 @@ namespace Compiler
             }
             else if (!(c=='"' && name.empty()))
             {
-                if (!isStringCharacter (c))
+                if (!isStringCharacter (c) && !(mTolerantNames && (c=='.' || c=='-')))
                 {
                     putback (c);
                     break;
@@ -408,6 +409,11 @@ namespace Compiler
                     special = S_cmpEQ;
                 else if (c=='=')
                     special = S_cmpEQ;
+                else if (c == '>' || c == '<')  // Treat => and =< as ==
+                {
+                    special = S_cmpEQ;
+                    mErrorHandler.warning (std::string("invalid operator =") + c + ", treating it as ==", mLoc);
+                }
                 else
                 {
                     special = S_cmpEQ;
@@ -572,7 +578,7 @@ namespace Compiler
         const Extensions *extensions)
     : mErrorHandler (errorHandler), mStream (inputStream), mExtensions (extensions),
       mPutback (Putback_None), mPutbackCode(0), mPutbackInteger(0), mPutbackFloat(0),
-      mStrictKeywords (false)
+      mStrictKeywords (false), mTolerantNames (false)
     {
     }
 
@@ -628,5 +634,10 @@ namespace Compiler
     void Scanner::enableStrictKeywords()
     {
         mStrictKeywords = true;
+    }
+
+    void Scanner::enableTolerantNames()
+    {
+        mTolerantNames = true;
     }
 }

@@ -48,7 +48,7 @@ Once the addon has been created you will be presented with a table. If you see
 a blank window rather than a table choose *World* → *Objects* from the menu.
 
 .. figure:: _static/images/chapter-1/objects.png
-   :alt: The table showing all objet records in the game.
+   :alt: The table showing all object records in the game.
 
 Let's talk about the interface for a second. Every window in OpenMW CS has
 *panels*, these are often but not always tables. You can close a panel by
@@ -139,7 +139,7 @@ the first character. Type the following into the field:
 
 A filter is defined by a number of *queries* which can be logically linked. For
 now all that matters is that the `string(<property>, <pattern>)` query will check
-whether `<propery>` matches `<pattern>`. The pattern is a regular expression,
+whether `<property>` matches `<pattern>`. The pattern is a regular expression,
 if you don't know about them you should learn their syntax. For now all that
 matters is that `.` stands for any character and `*` stands for any amount,
 even zero. In other words, we are looking for all entries which have an ID that
@@ -211,13 +211,165 @@ Adding the ring to the game's world
 
 Now that we have defined the ring it is time add it to the game world so the
 player can find it legitimately. We will add the ring to a merchant, place it
-in a chest and put it somewhere in plain sight. To this end we will have to
+in a chest, and put it somewhere in plain sight. To this end we will have to
 actually modify the contents of the game.
 
+Adding to an NPC
+================
 
-Subsection to come...
+The simplest way is probably to add it to the inventory of a shopkeeper. 
+An obvious candidate is Arrille in Seyda Neen - he's quick to find in a new game
+and he's easy to find in the CS as his name comes early alphabetically.
+
+.. figure:: _static/images/chapter-1/Ring_to_Arrille.png
+   :alt: Putting the ring into Arrille's inventory
+   
+Open the CS and open the *Objects* table (*World* → *Objects*). 
+Scroll down to Arrille, or use a filter like !string("ID","arrille").
+
+Open another pane to edit him - either right click and select edit or use the 
+shortcut (default is shift double-click). Scroll down to the inventory section
+and right click to add a new row. Type in the id of the ring (or find it in the 
+object pane, and drag and drop). Set the number of rings for him to stock - with 
+a negative number indicating that he will restock again to maintain that level.
+
+However, it's an attractive item, so he will probably wear it rather than sell it.
+So set his stock level too high for him to wear them all (3 works, 2 might do).
+
+Another possibilty, again in Seyda Neen making it easy to access, would be for
+Fargoth to give it to the player in exchange for his healing ring.
+
+.. figure:: _static/images/chapter-1/Ring_to_Fargoth_1.png
+   :alt: Editing Fargoth to give ring to player
+   
+Open the *Topicinfo* Table (*Characters* → *Topic Infos*). Use a filter !string(Topic,ring)
+and select the row with a response starting with "You found it!". Edit the record,
+firstly by adding a bit more to the response, then by adding a line to the script
+to give the ring to the player - the same as used earlier in the console
+
+.. code::
+
+   player->AddItem "ring_night_vision" 1
+
+.. figure:: _static/images/chapter-1/Ring_to_Fargoth_2.png
+   :alt: Editing Fargoth to give ring to player
+
+Placing in a chest
+==================
+
+For this example we will use the small chest intended for lockpick practice,
+located in the Census and Excise Office in Seyda Neen.
+
+First we need the ID of the chest - this can be obtained either by clicking on it in the console
+in the game, or by applying a similar process in the CS -
+
+World/Cells
+
+Select "Seyda Neen, Census and Excise Office"
+
+Right-click and select "View"
+
+Use mouse wheel to zoom in/out, and mouse plus WASD keys to navigate
+
+Click on the small chest
+
+Either way, you should find the ID, which is "chest_small_02_lockprac".
+
+Open the Objects table (World/Objects) and scroll down to find this item.
+
+Alternatively use the Edit/Search facility, selecting ID rather than text,
+enter "lockprac" (without the quotes) into the search box, press "Search",
+which should return two rows, then select the "Container" one rather than the "Instance"
+
+Right-click and "Edit Record".
+
+Right-click the "Content" section and select "Add a row"
+
+Set the Item ID of the new row to be your new ring - simplest way is probably to open the Objects
+table if it's not already open, sort on the "Modified" column which should bring the ring,
+with its status of "Added" to the top, then drag and drop to the chest row.
+
+Increase the Count to 1.
+
+Save the addon, then test to ensure it works - e.g. start a new game and lockpick the chest.
+
+Placing in plain sight
 =====================
 
+Let's hide the Ring of Night vision in the cabin of the [Ancient Shipwreck]
+(http://en.uesp.net/wiki/Morrowind:Ancient_Shipwreck), a derelict vessel
+southeast of Dagon Fel. Open the list of Cells (*World* → *Cells*) and find
+"Ancient Shipwreck, Cabin".
+
+This will open a visualization of the cabin. You can navigate around the scene
+just like you would when playing Morrowind. Use the WASD keys to move forward,
+backwards, and sideways. Click and drag with the left mouse button to change the
+direction you are looking. Navigate to the table in the cabin.
+
+If you've closed the Objects table, reopen it via *World* → *Objects*. Navigate
+to your Ring of Night Vision (you can find it easily if you sort by the "Modified"
+column). Drag the ring from the Objects table onto the table in the Cell view.
+
+Now let's move the ring to the precise location we want. Hover over the ring and
+click the middle mouse button. If you don't have a middle mouse button, you can
+select an alternative command by going to *Edit* → *Preferences…* (Windows, Linux)
+or *OpenMW* → *Preferences…* (macOS). Go to the Key Bindings section and choose
+"Scene" from the dropdown menu. Then click on the button for "Primary Select" and
+choose an alternative binding.
+
+After you have switched to movement mode, you will see several arrows. Clicking
+and dragging them with the right mouse button will allow you to move the object
+in the direction you want.
+
+If you'd like an easy way to test this, you can start OpenMW with the [game
+arguments](https://wiki.openmw.org/index.php?title=Testing)
+`--start="Ancient Shipwreck, Cabin" --skip-menu`. This will place you right in
+the cell and allow you to pick up and equip the ring in order to check that it
+works.
+
+Navigation in the CS
+====================
+This is probably a suitable place to start talking about how navigation differs from TESCS
+in vanilla Morrowind.
+
+There is advice in Scripting for Dummies, the definitive manual for Morrowind Scripting:
+"If you give your scripts a common tag, that will make it easier to jump between the 
+different scripts of your project, e.g. start every script name with AA_Scriptname 
+this will put them right at the beginning of the list and keep them neatly together."
+
+This is valid for the rather poorer navigation facilities there, but it's not sensible for
+the OpenMW CS. Some modders took it further, and started script names and object id with numbers,
+typically "1", to bring the items even earlier in the default alphabetical sorts. In fact
+the CS won't allow names/ids to start with numbers or to include ".".
+
+There are better options available:
+
+Filtering, which isn't available at all in TESCS - put in a filter like
+
+!string("ID",".*ring.*")
+
+to find all IDs which contain the string "ring"
+
+Sorting, which is available in some parts of TESCS, but not for scripts (other than script names being
+sorted in ascending order)- hence the recommendation
+Typically the "Modified" column is useful here - most items will have "Base" status, unchanged from
+the base game.
+
+"Added" status" will cover those items added in this addon.
+
+"Modified" status will cover items from the base game which have been modified in this addon.
+
+Click on the top of the column to toggle between ascending and descending order - thus between "Added" 
+and "Modified" at the top. Or put your desired modified status into a filter then sort alpabetically 
+on a different column.
 
 
+   
+Checking your new addon
+=======================
 
+Launch OpenMW and in the launcher under *Data Files* check your addon, if it's not
+already checked. Load a game and make your way to Seyda Neen - or start a new game.
+
+Check whether Arrille has one (or more) for sale, and whether Fargoth give you one
+when you return his healing ring.

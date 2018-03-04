@@ -607,6 +607,11 @@ namespace MWWorld
         }
         return ptr;
     }
+    void Store<ESM::Cell>::clearDynamic()
+    {
+        setUp();
+    }
+
     void Store<ESM::Cell>::setUp()
     {
         typedef DynamicExt::iterator ExtIterator;
@@ -687,7 +692,7 @@ namespace MWWorld
                             if (it_lease != wipecell->mLeasedRefs.end())
                                 wipecell->mLeasedRefs.erase(it_lease);
                             else
-                                std::cerr << "can't find " << it->mRefNum.mIndex << " " << it->mRefNum.mContentFile  << " in leasedRefs " << std::endl;
+                                std::cerr << "Error: can't find " << it->mRefNum.mIndex << " " << it->mRefNum.mContentFile  << " in leasedRefs " << std::endl;
                         }
                         *itold = *it;
                     }

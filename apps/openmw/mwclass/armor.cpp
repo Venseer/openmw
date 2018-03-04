@@ -57,7 +57,7 @@ namespace MWClass
         return ref->mBase->mName;
     }
 
-    boost::shared_ptr<MWWorld::Action> Armor::activate (const MWWorld::Ptr& ptr,
+    std::shared_ptr<MWWorld::Action> Armor::activate (const MWWorld::Ptr& ptr,
         const MWWorld::Ptr& actor) const
     {
         return defaultItemActivate(ptr, actor);
@@ -165,7 +165,7 @@ namespace MWClass
 
     void Armor::registerSelf()
     {
-        boost::shared_ptr<Class> instance (new Armor);
+        std::shared_ptr<Class> instance (new Armor);
 
         registerClass (typeid (ESM::Armor).name(), instance);
     }
@@ -295,7 +295,7 @@ namespace MWClass
 
     std::pair<int, std::string> Armor::canBeEquipped(const MWWorld::ConstPtr &ptr, const MWWorld::Ptr &npc) const
     {
-        MWWorld::InventoryStore& invStore = npc.getClass().getInventoryStore(npc);
+        const MWWorld::InventoryStore& invStore = npc.getClass().getInventoryStore(npc);
 
         if (ptr.getCellRef().getCharge() == 0)
             return std::make_pair(0, "#{sInventoryMessage1}");
@@ -332,7 +332,7 @@ namespace MWClass
             // If equipping a shield, check if there's a twohanded weapon conflicting with it
             if(*slot == MWWorld::InventoryStore::Slot_CarriedLeft)
             {
-                MWWorld::ContainerStoreIterator weapon = invStore.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
+                MWWorld::ConstContainerStoreIterator weapon = invStore.getSlot(MWWorld::InventoryStore::Slot_CarriedRight);
 
                 if(weapon == invStore.end())
                     return std::make_pair(1,"");
@@ -354,9 +354,9 @@ namespace MWClass
         return std::make_pair(1,"");
     }
 
-    boost::shared_ptr<MWWorld::Action> Armor::use (const MWWorld::Ptr& ptr) const
+    std::shared_ptr<MWWorld::Action> Armor::use (const MWWorld::Ptr& ptr) const
     {
-        boost::shared_ptr<MWWorld::Action> action(new MWWorld::ActionEquip(ptr));
+        std::shared_ptr<MWWorld::Action> action(new MWWorld::ActionEquip(ptr));
 
         action->setSound(getUpSoundId(ptr));
 

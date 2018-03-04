@@ -2,8 +2,6 @@
 
 #include <utility>
 
-#include <OpenThreads/ScopedLock>
-
 #include "esmreader.hpp"
 #include "esmwriter.hpp"
 #include "defs.hpp"
@@ -18,7 +16,6 @@ namespace ESM
         , mY(0)
         , mPlugin(0)
         , mDataTypes(0)
-        , mDataLoaded(false)
         , mLandData(NULL)
     {
     }
@@ -76,7 +73,6 @@ namespace ESM
 
         mContext = esm.getContext();
 
-        mDataLoaded = 0;
         mLandData = NULL;
 
         // Skip the land data here. Load it when the cell is loaded.
@@ -179,45 +175,108 @@ namespace ESM
 
     }
 
-    void Land::loadData(int flags) const
+    void Land::blank()
     {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
+        mPlugin = 0;
+
+        for (int i = 0; i < LAND_GLOBAL_MAP_LOD_SIZE; ++i)
+            mWnam[0] = 0;
+
+        if (!mLandData)
+            mLandData = new LandData;
+
+        mLandData->mHeightOffset = 0;
+        for (int i = 0; i < LAND_NUM_VERTS; ++i)
+            mLandData->mHeights[i] = 0;
+        mLandData->mMinHeight = 0;
+        mLandData->mMaxHeight = 0;
+        for (int i = 0; i < LAND_NUM_VERTS; ++i)
+        {
+            mLandData->mNormals[i*3+0] = 0;
+            mLandData->mNormals[i*3+1] = 0;
+            mLandData->mNormals[i*3+2] = 127;
+        }
+        for (int i = 0; i < LAND_NUM_TEXTURES; ++i)
+            mLandData->mTextures[i] = 0;
+        for (int i = 0; i < LAND_NUM_VERTS; ++i)
+        {
+            mLandData->mColours[i*3+0] = -1;
+            mLandData->mColours[i*3+1] = -1;
+            mLandData->mColours[i*3+2] = -1;
+        }
+        mLandData->mUnk1 = 0;
+        mLandData->mUnk2 = 0;
+        mLandData->mDataLoaded = Land::DATA_VNML | Land::DATA_VHGT | Land::DATA_WNAM |
+            Land::DATA_VCLR | Land::DATA_VTEX;
+        mDataTypes = mLandData->mDataLoaded;
+
+        // No file associated with the land now
+        mContext.filename.clear();
+    }
+
+    void Land::loadData(int flags, LandData* target) const
+    {
+        // Create storage if nothing is loaded
+        if (!target && !mLandData)
+        {
+            mLandData = new LandData;
+        }
+
+        if (!target)
+            target = mLandData;
 
         // Try to load only available data
         flags = flags & mDataTypes;
         // Return if all required data is loaded
-        if ((mDataLoaded & flags) == flags) {
+        if ((target->mDataLoaded & flags) == flags) {
             return;
         }
-        // Create storage if nothing is loaded
-        if (mLandData == NULL) {
-            mLandData = new LandData;
+
+        // Copy data to target if no file
+        if (mContext.filename.empty())
+        {
+            // Make sure there is data, and that it doesn't point to the same object.
+            if (mLandData && mLandData != target)
+                *target = *mLandData;
+
+            return;
         }
 
         ESM::ESMReader reader;
         reader.restoreContext(mContext);
 
         if (reader.isNextSub("VNML")) {
-            condLoad(reader, flags, DATA_VNML, mLandData->mNormals, sizeof(mLandData->mNormals));
+            condLoad(reader, flags, target->mDataLoaded, DATA_VNML, target->mNormals, sizeof(target->mNormals));
         }
 
         if (reader.isNextSub("VHGT")) {
             VHGT vhgt;
-            if (condLoad(reader, flags, DATA_VHGT, &vhgt, sizeof(vhgt))) {
+            if (condLoad(reader, flags, target->mDataLoaded, DATA_VHGT, &vhgt, sizeof(vhgt))) {
+                target->mMinHeight = FLT_MAX;
+                target->mMaxHeight = -FLT_MAX;
                 float rowOffset = vhgt.mHeightOffset;
                 for (int y = 0; y < LAND_SIZE; y++) {
                     rowOffset += vhgt.mHeightData[y * LAND_SIZE];
 
-                    mLandData->mHeights[y * LAND_SIZE] = rowOffset * HEIGHT_SCALE;
+                    target->mHeights[y * LAND_SIZE] = rowOffset * HEIGHT_SCALE;
+                    if (rowOffset * HEIGHT_SCALE > target->mMaxHeight)
+                        target->mMaxHeight = rowOffset * HEIGHT_SCALE;
+                    if (rowOffset * HEIGHT_SCALE < target->mMinHeight)
+                        target->mMinHeight = rowOffset * HEIGHT_SCALE;
 
                     float colOffset = rowOffset;
                     for (int x = 1; x < LAND_SIZE; x++) {
                         colOffset += vhgt.mHeightData[y * LAND_SIZE + x];
-                        mLandData->mHeights[x + y * LAND_SIZE] = colOffset * HEIGHT_SCALE;
+                        target->mHeights[x + y * LAND_SIZE] = colOffset * HEIGHT_SCALE;
+
+                        if (colOffset * HEIGHT_SCALE > target->mMaxHeight)
+                            target->mMaxHeight = colOffset * HEIGHT_SCALE;
+                        if (colOffset * HEIGHT_SCALE < target->mMinHeight)
+                            target->mMinHeight = colOffset * HEIGHT_SCALE;
                     }
                 }
-                mLandData->mUnk1 = vhgt.mUnk1;
-                mLandData->mUnk2 = vhgt.mUnk2;
+                target->mUnk1 = vhgt.mUnk1;
+                target->mUnk2 = vhgt.mUnk2;
             }
         }
 
@@ -225,30 +284,29 @@ namespace ESM
             reader.skipHSub();
 
         if (reader.isNextSub("VCLR"))
-            condLoad(reader, flags, DATA_VCLR, mLandData->mColours, 3 * LAND_NUM_VERTS);
+            condLoad(reader, flags, target->mDataLoaded, DATA_VCLR, target->mColours, 3 * LAND_NUM_VERTS);
         if (reader.isNextSub("VTEX")) {
             uint16_t vtex[LAND_NUM_TEXTURES];
-            if (condLoad(reader, flags, DATA_VTEX, vtex, sizeof(vtex))) {
-                transposeTextureData(vtex, mLandData->mTextures);
+            if (condLoad(reader, flags, target->mDataLoaded, DATA_VTEX, vtex, sizeof(vtex))) {
+                transposeTextureData(vtex, target->mTextures);
             }
         }
     }
 
     void Land::unloadData() const
     {
-        if (mDataLoaded)
+        if (mLandData)
         {
             delete mLandData;
             mLandData = NULL;
-            mDataLoaded = 0;
         }
     }
 
-    bool Land::condLoad(ESM::ESMReader& reader, int flags, int dataFlag, void *ptr, unsigned int size) const
+    bool Land::condLoad(ESM::ESMReader& reader, int flags, int& targetFlags, int dataFlag, void *ptr, unsigned int size) const
     {
-        if ((mDataLoaded & dataFlag) == 0 && (flags & dataFlag) != 0) {
+        if ((targetFlags & dataFlag) == 0 && (flags & dataFlag) != 0) {
             reader.getHExact(ptr, size);
-            mDataLoaded |= dataFlag;
+            targetFlags |= dataFlag;
             return true;
         }
         reader.skipHSubSize(size);
@@ -257,14 +315,12 @@ namespace ESM
 
     bool Land::isDataLoaded(int flags) const
     {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
-        return (mDataLoaded & flags) == (flags & mDataTypes);
+        return mLandData && (mLandData->mDataLoaded & flags) == flags;
     }
 
     Land::Land (const Land& land)
     : mFlags (land.mFlags), mX (land.mX), mY (land.mY), mPlugin (land.mPlugin),
       mContext (land.mContext), mDataTypes (land.mDataTypes),
-      mDataLoaded (land.mDataLoaded),
       mLandData (land.mLandData ? new LandData (*land.mLandData) : 0)
     {}
 
@@ -282,7 +338,6 @@ namespace ESM
         std::swap (mPlugin, land.mPlugin);
         std::swap (mContext, land.mContext);
         std::swap (mDataTypes, land.mDataTypes);
-        std::swap (mDataLoaded, land.mDataLoaded);
         std::swap (mLandData, land.mLandData);
     }
 
@@ -311,18 +366,22 @@ namespace ESM
             mLandData = new LandData;
 
         mDataTypes |= flags;
-        mDataLoaded |= flags;
+        mLandData->mDataLoaded |= flags;
     }
 
     void Land::remove (int flags)
     {
         mDataTypes &= ~flags;
-        mDataLoaded &= ~flags;
 
-        if (!mDataLoaded)
+        if (mLandData)
         {
-            delete mLandData;
-            mLandData = 0;
+            mLandData->mDataLoaded &= ~flags;
+
+            if (!mLandData->mDataLoaded)
+            {
+                delete mLandData;
+                mLandData = 0;
+            }
         }
     }
 }

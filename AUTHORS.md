@@ -22,6 +22,7 @@ Programmers
     Alexander Nadeau (wareya)
     Alexander Olofsson (Ace)
     Allofich
+    Andrei Kortunov (akortunov)
     AnyOldName3
     Aussiemon
     Austin Salgat (Salgat)
@@ -33,11 +34,14 @@ Programmers
     Ben Shealy (bentsherman)
     Bret Curtis (psi29a)
     Britt Mathis (galdor557)
+    Capostrophic
     cc9cii
     Chris Boyce (slothlife)
     Chris Robinson (KittyCat)
     Cory F. Cohen (cfcohen)
     Cris Mihalache (Mirceam)
+    crussell187
+    DanielVukelich
     darkf
     devnexen
     Dieho
@@ -49,6 +53,7 @@ Programmers
     Edmondo Tommasina (edmondo)
     Eduard Cot (trombonecot)
     Eli2
+    elsid
     Emanuel Guével (potatoesmaster)
     eroen
     escondida
@@ -58,10 +63,11 @@ Programmers
     Gašper Sedej
     gugus/gus
     Hallfaer Tuilinn
+    Haoda Wang (h313)
     hristoast
     Internecine
-    Jacob Essex (Yacoby)
-    Jannik Heller (scrawl)
+    Jacob Essex (Yacoby)    
+    Jake Westrip (16bitint)
     Jason Hooks (jhooks)
     jeaye
     Jeffrey Haines (Jyby)
@@ -73,6 +79,7 @@ Programmers
     Jordan Ayers
     Jordan Milne
     Jules Blok (Armada651)
+    julianko
     Julien Voisin (jvoisin/ap0)
     Karl-Felix Glatzer (k1ll)
     Kevin Poitra (PuppyKevin)
@@ -82,6 +89,7 @@ Programmers
     lazydev
     Leon Krieg (lkrieg)
     Leon Saunders (emoose)
+    Łukasz Gołębiewski (lukago)
     logzero
     lohikaarme
     Lukasz Gromanowski (lgro)
@@ -100,12 +108,15 @@ Programmers
     Michael Papageorgiou (werdanith)
     Michał Bień (Glorf)
     Michał Moroz (dragonee)
+    Miloslav Číž (drummyfish)
     Miroslav Puda (pakanek)
     MiroslavR
+    Mitchell Schwitzer (schwitzerm)
     naclander
     Narmo
     Nathan Jeffords (blunted2night)
     NeveHanter
+    Nialsy
     Nikolay Kasyanov (corristo)
     nobrakal
     Nolan Poe (nopoe)
@@ -115,8 +126,11 @@ Programmers
     Pi03k
     Pieter van der Kloet (pvdk)
     pkubik
+    PlutonicOverkill
     Radu-Marius Popovici (rpopovici)
+    Rafael Moura (dhustkoder)
     rdimesio
+    rexelion
     riothamus
     Rob Cutmore (rcutmore)
     Robert MacGregor (Ragora)
@@ -125,11 +139,14 @@ Programmers
     Roman Proskuryakov (kpp)
     Sandy Carter (bwrsandman)
     Scott Howard
+    scrawl
     Sebastian Wick (swick)
     Sergey Shambir
     ShadowRadiance
+    Siimacore
     sir_herrbatka
     smbas
+    spycrab
     Stefan Galowicz (bogglez)
     Stanislav Bobrov (Jiub)
     stil-t
@@ -137,7 +154,9 @@ Programmers
     Sylvain Thesnieres (Garvek)
     t6
     terrorfisch
+    thegriglat
     Thomas Luppi (Digmaster)
+    Will Herrmann (Thunderforge)
     Tom Mason (wheybags)
     Torben Leif Carrington (TorbenC)
     viadanna

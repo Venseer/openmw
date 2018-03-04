@@ -12,11 +12,9 @@ class MerchantRepair : public WindowBase
 public:
     MerchantRepair();
 
-    virtual void open();
+    virtual void onOpen();
 
-    virtual void exit();
-
-    void startRepair(const MWWorld::Ptr& actor);
+    void setPtr(const MWWorld::Ptr& actor);
 
 private:
     MyGUI::ScrollView* mList;
@@ -30,6 +28,7 @@ protected:
     void onRepairButtonClick(MyGUI::Widget* sender);
     void onOkButtonClick(MyGUI::Widget* sender);
 
+    static const int sLineHeight;
 };
 
 }

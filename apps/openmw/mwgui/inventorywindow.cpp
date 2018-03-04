@@ -1,5 +1,6 @@
 #include "inventorywindow.hpp"
 
+#include <cmath>
 #include <stdexcept>
 
 #include <MyGUI_Window.h>
@@ -18,7 +19,6 @@
 
 #include "../mwbase/world.hpp"
 #include "../mwbase/environment.hpp"
-#include "../mwbase/soundmanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/mechanicsmanager.hpp"
 #include "../mwbase/scriptmanager.hpp"
@@ -27,9 +27,9 @@
 #include "../mwworld/class.hpp"
 #include "../mwworld/action.hpp"
 #include "../mwscript/interpretercontext.hpp"
-#include "../mwrender/characterpreview.hpp"
 
 #include "../mwmechanics/actorutil.hpp"
+#include "../mwmechanics/creaturestats.hpp"
 
 #include "itemview.hpp"
 #include "inventoryitemmodel.hpp"
@@ -136,6 +136,18 @@ namespace MWGui
         dirtyPreview();
 
         updatePreviewSize();
+
+        updateEncumbranceBar();
+        mItemView->update();
+        notifyContentChanged();
+    }
+
+    void InventoryWindow::clear()
+    {
+        mPtr = MWWorld::Ptr();
+        mTradeModel = NULL;
+        mSortModel = NULL;
+        mItemView->setModel(NULL);
     }
 
     void InventoryWindow::setGuiMode(GuiMode mode)
@@ -217,8 +229,8 @@ namespace MWGui
 
         MWWorld::Ptr object = item.mBase;
         int count = item.mCount;
-
         bool shift = MyGUI::InputManager::getInstance().isShiftPressed();
+
         if (MyGUI::InputManager::getInstance().isControlPressed())
             count = 1;
 
@@ -227,7 +239,7 @@ namespace MWGui
             // Can't give conjured items to a merchant
             if (item.mFlags & ItemStack::Flag_Bound)
             {
-                MWBase::Environment::get().getSoundManager()->playSound (sound, 1.0, 1.0);
+                MWBase::Environment::get().getWindowManager()->playSound(sound);
                 MWBase::Environment::get().getWindowManager()->messageBox("#{sBarterDialog9}");
                 return;
             }
@@ -236,9 +248,22 @@ namespace MWGui
             int services = MWBase::Environment::get().getWindowManager()->getTradeWindow()->getMerchantServices();
             if (!object.getClass().canSell(object, services))
             {
-                MWBase::Environment::get().getSoundManager()->playSound (sound, 1.0, 1.0);
+                MWBase::Environment::get().getWindowManager()->playSound(sound);
                 MWBase::Environment::get().getWindowManager()->
                         messageBox("#{sBarterDialog4}");
+                return;
+            }
+        }
+
+        // If we unequip weapon during attack, it can lead to unexpected behaviour
+        if (MWBase::Environment::get().getMechanicsManager()->isAttackingOrSpell(mPtr))
+        {
+            bool isWeapon = item.mBase.getTypeName() == typeid(ESM::Weapon).name();
+            MWWorld::InventoryStore& invStore = mPtr.getClass().getInventoryStore(mPtr);
+
+            if (isWeapon && invStore.isEquipped(item.mBase))
+            {
+                MWBase::Environment::get().getWindowManager()->messageBox("#{sCantEquipWeapWarning}");
                 return;
             }
         }
@@ -309,8 +334,8 @@ namespace MWGui
     {
         ensureSelectedItemUnequipped(count);
         const ItemStack& item = mTradeModel->getItem(mSelectedItem);
-        std::string sound = item.mBase.getClass().getDownSoundId(item.mBase);
-        MWBase::Environment::get().getSoundManager()->playSound (sound, 1.0, 1.0);
+        std::string sound = item.mBase.getClass().getUpSoundId(item.mBase);
+        MWBase::Environment::get().getWindowManager()->playSound(sound);
 
         if (item.mType == ItemStack::Type_Barter)
         {
@@ -338,15 +363,14 @@ namespace MWGui
         dirtyPreview();
     }
 
-    void InventoryWindow::open()
+    void InventoryWindow::onOpen()
     {
-        mPtr = MWMechanics::getPlayer();
-
-        updateEncumbranceBar();
-
-        mItemView->update();
-
-        notifyContentChanged();
+        if (!mPtr.isEmpty())
+        {
+            updateEncumbranceBar();
+            mItemView->update();
+            notifyContentChanged();
+        }
         adjustPanes();
     }
 
@@ -433,6 +457,8 @@ namespace MWGui
 
     void InventoryWindow::onPinToggled()
     {
+        Settings::Manager::setBool("inventory pin", "Windows", mPinned);
+
         MWBase::Environment::get().getWindowManager()->setWeaponVisibility(!mPinned);
     }
 
@@ -480,7 +506,7 @@ namespace MWGui
         {
             if (script.empty() || ptr.getRefData().getLocals().getIntVar(script, "pcskipequip") == 0)
             {
-                boost::shared_ptr<MWWorld::Action> action = ptr.getClass().use(ptr);
+                std::shared_ptr<MWWorld::Action> action = ptr.getClass().use(ptr);
 
                 action->execute (player);
             }
@@ -502,6 +528,7 @@ namespace MWGui
         if (mDragAndDrop->mIsOnDragAndDrop)
         {
             MWWorld::Ptr ptr = mDragAndDrop->mItem.mBase;
+
             mDragAndDrop->finish();
 
             if (mDragAndDrop->mSourceModel != mTradeModel)
@@ -509,7 +536,19 @@ namespace MWGui
                 // Move item to the player's inventory
                 ptr = mDragAndDrop->mSourceModel->moveItem(mDragAndDrop->mItem, mDragAndDrop->mDraggedCount, mTradeModel);
             }
+
             useItem(ptr);
+
+            // If item is ingredient or potion don't stop drag and drop to simplify action of taking more than one 1 item
+            if ((ptr.getTypeName() == typeid(ESM::Potion).name() ||
+                 ptr.getTypeName() == typeid(ESM::Ingredient).name())
+                && mDragAndDrop->mDraggedCount > 1)
+            {
+                // Item can be provided from other window for example container.
+                // But after DragAndDrop::startDrag item automaticly always gets to player inventory.
+                mSelectedItem = getModel()->getIndex(mDragAndDrop->mItem);
+                dragItem(nullptr, mDragAndDrop->mDraggedCount - 1);
+            }
         }
         else
         {
@@ -560,14 +599,11 @@ namespace MWGui
         float capacity = player.getClass().getCapacity(player);
         float encumbrance = player.getClass().getEncumbrance(player);
         mTradeModel->adjustEncumbrance(encumbrance);
-        mEncumbranceBar->setValue(static_cast<int>(encumbrance), static_cast<int>(capacity));
+        mEncumbranceBar->setValue(std::ceil(encumbrance), static_cast<int>(capacity));
     }
 
-    void InventoryWindow::onFrame()
+    void InventoryWindow::onFrame(float dt)
     {
-        if (!mMainWidget->getVisible())
-            return;
-
         updateEncumbranceBar();
     }
 
@@ -622,12 +658,16 @@ namespace MWGui
 
         MWWorld::Ptr player = MWMechanics::getPlayer();
         MWBase::Environment::get().getWorld()->breakInvisibility(player);
+        
+        if (!object.getRefData().activate())
+            return;
 
         MWBase::Environment::get().getMechanicsManager()->itemTaken(player, object, MWWorld::Ptr(), count);
 
         // add to player inventory
         // can't use ActionTake here because we need an MWWorld::Ptr to the newly inserted object
         MWWorld::Ptr newObject = *player.getClass().getContainerStore (player).add (object, object.getRefData().getCount(), player);
+
         // remove from world
         MWBase::Environment::get().getWorld()->deleteObject (object);
 
@@ -648,9 +688,18 @@ namespace MWGui
 
     void InventoryWindow::cycle(bool next)
     {
+        MWWorld::Ptr player = MWMechanics::getPlayer();
+
+        if (MWBase::Environment::get().getMechanicsManager()->isAttackingOrSpell(player))
+            return;
+
+        const MWMechanics::CreatureStats &stats = player.getClass().getCreatureStats(player);
+        if (stats.isParalyzed() || stats.getKnockedDown() || stats.isDead() || stats.getHitRecovery())
+            return;
+
         ItemModel::ModelIndex selected = -1;
         // not using mSortFilterModel as we only need sorting, not filtering
-        SortFilterItemModel model(new InventoryItemModel(MWMechanics::getPlayer()));
+        SortFilterItemModel model(new InventoryItemModel(player));
         model.setSortByType(false);
         model.update();
         if (model.getItemCount() == 0)
@@ -682,14 +731,16 @@ namespace MWGui
 
             lastId = item.getCellRef().getRefId();
 
-            if (item.getClass().getTypeName() == typeid(ESM::Weapon).name() && isRightHandWeapon(item))
+            if (item.getClass().getTypeName() == typeid(ESM::Weapon).name() &&
+                isRightHandWeapon(item) &&
+                item.getClass().canBeEquipped(item, player).first)
             {
                 found = true;
                 break;
             }
         }
 
-        if (!found)
+        if (!found || selected == cycled)
             return;
 
         useItem(model.getItem(cycled).mBase);

@@ -3,15 +3,13 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <sstream>
 
 #include <osg/Program>
 
-#include <boost/lexical_cast.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/algorithm/string.hpp>
-
-#include <OpenThreads/ScopedLock>
 
 namespace Shader
 {
@@ -133,13 +131,17 @@ namespace Shader
         {
             std::string shaderSource = templateIt->second;
             if (!parseDefines(shaderSource, defines))
+            {
+                // Add to the cache anyway to avoid logging the same error over and over.
+                mShaders.insert(std::make_pair(std::make_pair(shaderTemplate, defines), nullptr));
                 return NULL;
+            }
 
             osg::ref_ptr<osg::Shader> shader (new osg::Shader(shaderType));
             shader->setShaderSource(shaderSource);
             // Assign a unique name to allow the SharedStateManager to compare shaders efficiently
             static unsigned int counter = 0;
-            shader->setName(boost::lexical_cast<std::string>(counter++));
+            shader->setName(std::to_string(counter++));
 
             shaderIt = mShaders.insert(std::make_pair(std::make_pair(shaderTemplate, defines), shader)).first;
         }
@@ -158,6 +160,15 @@ namespace Shader
             found = mPrograms.insert(std::make_pair(std::make_pair(vertexShader, fragmentShader), program)).first;
         }
         return found->second;
+    }
+
+    void ShaderManager::releaseGLObjects(osg::State *state)
+    {
+        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
+        for (auto shader : mShaders)
+            shader.second->releaseGLObjects(state);
+        for (auto program : mPrograms)
+            program.second->releaseGLObjects(state);
     }
 
 }

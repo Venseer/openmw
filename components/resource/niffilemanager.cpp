@@ -49,14 +49,14 @@ namespace Resource
             return static_cast<NifFileHolder*>(obj.get())->mNifFile;
         else
         {
-            Nif::NIFFilePtr file (new Nif::NIFFile(mVFS->getNormalized(name), name));
+            Nif::NIFFilePtr file (new Nif::NIFFile(mVFS->get(name), name));
             obj = new NifFileHolder(file);
             mCache->addEntryToObjectCache(name, obj);
             return file;
         }
     }
 
-    void NifFileManager::reportStats(unsigned int frameNumber, osg::Stats *stats)
+    void NifFileManager::reportStats(unsigned int frameNumber, osg::Stats *stats) const
     {
         stats->setAttribute(frameNumber, "Nif", mCache->getCacheSize());
     }

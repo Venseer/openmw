@@ -31,6 +31,7 @@ namespace osgDB
 namespace Shader
 {
     class ShaderManager;
+    class ShaderVisitor;
 }
 
 namespace Resource
@@ -93,6 +94,10 @@ namespace Resource
         /// @note Thread safe.
         osg::ref_ptr<osg::Node> cacheInstance(const std::string& name);
 
+        osg::ref_ptr<osg::Node> createInstance(const std::string& name);
+
+        osg::ref_ptr<osg::Node> createInstance(const osg::Node* base);
+
         /// Get an instance of the given scene template
         /// @see getTemplate
         /// @note Thread safe.
@@ -112,10 +117,12 @@ namespace Resource
 
         /// Manually release created OpenGL objects for the given graphics context. This may be required
         /// in cases where multiple contexts are used over the lifetime of the application.
-        void releaseGLObjects(osg::State* state);
+        void releaseGLObjects(osg::State* state) override;
 
         /// Set up an IncrementalCompileOperation for background compiling of loaded scenes.
         void setIncrementalCompileOperation(osgUtil::IncrementalCompileOperation* ico);
+
+        osgUtil::IncrementalCompileOperation* getIncrementalCompileOperation();
 
         Resource::ImageManager* getImageManager();
 
@@ -135,15 +142,17 @@ namespace Resource
         void setUnRefImageDataAfterApply(bool unref);
 
         /// @see ResourceManager::updateCache
-        virtual void updateCache(double referenceTime);
+        void updateCache(double referenceTime) override;
 
-        virtual void reportStats(unsigned int frameNumber, osg::Stats* stats);
+        void clearCache() override;
+
+        void reportStats(unsigned int frameNumber, osg::Stats* stats) const override;
 
     private:
 
-        osg::ref_ptr<osg::Node> createInstance(const std::string& name);
+        Shader::ShaderVisitor* createShaderVisitor();
 
-        std::auto_ptr<Shader::ShaderManager> mShaderManager;
+        std::unique_ptr<Shader::ShaderManager> mShaderManager;
         bool mForceShaders;
         bool mClampLighting;
         bool mForcePerPixelLighting;
@@ -156,7 +165,7 @@ namespace Resource
         osg::ref_ptr<MultiObjectCache> mInstanceCache;
 
         osg::ref_ptr<Resource::SharedStateManager> mSharedStateManager;
-        OpenThreads::Mutex mSharedStateMutex;
+        mutable OpenThreads::Mutex mSharedStateMutex;
 
         Resource::ImageManager* mImageManager;
         Resource::NifFileManager* mNifFileManager;

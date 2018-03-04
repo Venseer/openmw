@@ -23,7 +23,7 @@ add_openmw_dir (mwrender
     actors objects renderingmanager animation rotatecontroller sky npcanimation vismask
     creatureanimation effectmanager util renderinginterface pathgrid rendermode weaponanimation
     bulletdebugdraw globalmap characterpreview camera localmap water terrainstorage ripplesimulation
-    renderbin actoranimation
+    renderbin actoranimation landmanager
     )
 
 add_openmw_dir (mwinput
@@ -42,7 +42,7 @@ add_openmw_dir (mwgui
     itemmodel containeritemmodel inventoryitemmodel sortfilteritemmodel itemview
     tradeitemmodel companionitemmodel pickpocketitemmodel controllers savegamedialog
     recharge mode videowidget backgroundimage itemwidget screenfader debugwindow spellmodel spellview
-    draganddrop timeadvancer jailscreen itemchargeview
+    draganddrop timeadvancer jailscreen itemchargeview keyboardnavigation
     )
 
 add_openmw_dir (mwdialogue
@@ -57,7 +57,8 @@ add_openmw_dir (mwscript
     )
 
 add_openmw_dir (mwsound
-    soundmanagerimp openal_output ffmpeg_decoder sound sound_buffer sound_decoder sound_output loudness movieaudiofactory
+    soundmanagerimp openal_output ffmpeg_decoder sound sound_buffer sound_decoder sound_output
+    loudness movieaudiofactory alext efx efx-presets
     )
 
 add_openmw_dir (mwworld
@@ -81,14 +82,14 @@ add_openmw_dir (mwclass
 
 add_openmw_dir (mwmechanics
     mechanicsmanagerimp stat creaturestats magiceffects movement actorutil
-    drawstate spells activespells npcstats aipackage aisequence aipursue alchemy aiwander aitravel aifollow aiavoiddoor
+    drawstate spells activespells npcstats aipackage aisequence aipursue alchemy aiwander aitravel aifollow aiavoiddoor aibreathe
     aiescort aiactivate aicombat repair enchanting pathfinding pathgrid security spellsuccess spellcasting
     disease pickpocket levelledlist combat steering obstacle autocalcspell difficultyscaling aicombataction actor summoning
-    character actors objects aistate coordinateconverter trading aiface
+    character actors objects aistate coordinateconverter trading aiface weaponpriority spellpriority
     )
 
 add_openmw_dir (mwstate
-    statemanagerimp charactermanager character
+    statemanagerimp charactermanager character quicksavemanager
     )
 
 add_openmw_dir (mwbase
@@ -99,7 +100,7 @@ add_openmw_dir (mwbase
 # Main executable
 
 if (NOT ANDROID)
-    add_executable(openmw
+    openmw_add_executable(openmw
         ${OPENMW_FILES}
         ${GAME} ${GAME_HEADER}
         ${APPLE_BUNDLE_RESOURCES}
@@ -158,9 +159,8 @@ if (ANDROID)
         dl
         z
         ${OPENSCENEGRAPH_LIBRARIES}
-        ${OSG_PLUGINS}
+        freetype
         jpeg
-        gif
     	png
     )
 endif (ANDROID)
@@ -189,6 +189,8 @@ if(APPLE)
     configure_file("${OpenMW_BINARY_DIR}/settings-default.cfg" ${BUNDLE_RESOURCES_DIR} COPYONLY)
     configure_file("${OpenMW_BINARY_DIR}/openmw.cfg" ${BUNDLE_RESOURCES_DIR} COPYONLY)
     configure_file("${OpenMW_BINARY_DIR}/gamecontrollerdb.txt" ${BUNDLE_RESOURCES_DIR} COPYONLY)
+    configure_file("${OpenMW_BINARY_DIR}/gamecontrollerdb_204.txt" ${BUNDLE_RESOURCES_DIR} COPYONLY)
+    configure_file("${OpenMW_BINARY_DIR}/gamecontrollerdb_205.txt" ${BUNDLE_RESOURCES_DIR} COPYONLY)
 
     add_custom_command(TARGET openmw
         POST_BUILD
@@ -220,4 +222,3 @@ endif (MSVC)
 if (WIN32)
     INSTALL(TARGETS openmw RUNTIME DESTINATION ".")
 endif (WIN32)
-

@@ -193,7 +193,8 @@ bool MWDialogue::Filter::testFunctionLocal(const MWDialogue::SelectWrapper& sele
         return false; // shouldn't happen, we checked that variable has a type above, so must exist
 
     const MWScript::Locals& locals = mActor.getRefData().getLocals();
-
+    if (locals.isEmpty())
+        return select.selectCompare(0);
     switch (type)
     {
         case 's': return select.selectCompare (static_cast<int> (locals.mShorts[index]));
@@ -344,13 +345,13 @@ int MWDialogue::Filter::getSelectStructInteger (const SelectWrapper& select) con
 
         case SelectWrapper::Function_PcClothingModifier:
         {
-            MWWorld::InventoryStore& store = player.getClass().getInventoryStore (player);
+            const MWWorld::InventoryStore& store = player.getClass().getInventoryStore (player);
 
             int value = 0;
 
             for (int i=0; i<=15; ++i) // everything except things held in hands and ammunition
             {
-                MWWorld::ContainerStoreIterator slot = store.getSlot (i);
+                MWWorld::ConstContainerStoreIterator slot = store.getSlot (i);
 
                 if (slot!=store.end())
                     value += slot->getClass().getValue (*slot);

@@ -1,13 +1,11 @@
 #include "settings.hpp"
 
-#include <stdexcept>
 #include <sstream>
 #include <iostream>
 
 #include <components/misc/stringops.hpp>
 
 #include <boost/filesystem/fstream.hpp>
-#include <boost/filesystem/path.hpp>
 #include <boost/algorithm/string.hpp>
 
 namespace
@@ -294,7 +292,7 @@ public:
             ostream << "# to its default, simply remove it from this file.  For available" << std::endl;
             ostream << "# settings, see the file 'settings-default.cfg' or the documentation at:" << std::endl;
             ostream << "#" << std::endl;
-            ostream << "#   https://wiki.openmw.org/index.php?title=Settings" << std::endl;
+            ostream << "#   http://openmw.readthedocs.io/en/master/reference/modding/settings/index.html" << std::endl;
         }
 
         // We still have one more thing to do before we're completely done writing the file.

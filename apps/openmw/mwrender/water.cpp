@@ -10,8 +10,6 @@
 #include <osg/PositionAttitudeTransform>
 #include <osg/ClipNode>
 #include <osg/FrontFace>
-#include <osg/Shader>
-#include <osg/GLExtensions>
 
 #include <osgDB/ReadFile>
 
@@ -28,11 +26,9 @@
 #include <components/sceneutil/waterutil.hpp>
 
 #include <components/nifosg/controller.hpp>
-#include <components/sceneutil/controller.hpp>
 
 #include <components/shader/shadermanager.hpp>
 
-#include <components/settings/settings.hpp>
 
 #include <components/esm/loadcell.hpp>
 
@@ -197,16 +193,16 @@ osg::ref_ptr<osg::Image> readPngImage (const std::string& file)
     boost::filesystem::ifstream inStream;
     inStream.open(file, std::ios_base::in | std::ios_base::binary);
     if (inStream.fail())
-        std::cerr << "Failed to open " << file << std::endl;
+        std::cerr << "Error: Failed to open " << file << std::endl;
     osgDB::ReaderWriter* reader = osgDB::Registry::instance()->getReaderWriterForExtension("png");
     if (!reader)
     {
-        std::cerr << "Failed to read " << file << ", no png readerwriter found" << std::endl;
+        std::cerr << "Error: Failed to read " << file << ", no png readerwriter found" << std::endl;
         return osg::ref_ptr<osg::Image>();
     }
     osgDB::ReaderWriter::ReadResult result = reader->readImage(inStream);
     if (!result.success())
-        std::cerr << "Failed to read " << file << ": " << result.message() << " code " << result.status() << std::endl;
+        std::cerr << "Error: Failed to read " << file << ": " << result.message() << " code " << result.status() << std::endl;
 
     return result.getImage();
 }
@@ -276,6 +272,12 @@ public:
 
     void setWaterLevel(float waterLevel)
     {
+        const float refractionScale = std::min(1.0f,std::max(0.0f,
+            Settings::Manager::getFloat("refraction scale", "Water")));
+
+        setViewMatrix(osg::Matrix::scale(1,1,refractionScale) *
+            osg::Matrix::translate(0,0,(1.0 - refractionScale) * waterLevel));
+
         mClipCullNode->setPlane(osg::Plane(osg::Vec3d(0,0,-1), osg::Vec3d(0,0, waterLevel)));
     }
 
@@ -340,8 +342,7 @@ public:
 
     void setWaterLevel(float waterLevel)
     {
-        setViewMatrix(osg::Matrix::translate(0,0,-waterLevel) * osg::Matrix::scale(1,1,-1) * osg::Matrix::translate(0,0,waterLevel));
-
+        setViewMatrix(osg::Matrix::scale(1,1,-1) * osg::Matrix::translate(0,0,2 * waterLevel));
         mClipCullNode->setPlane(osg::Plane(osg::Vec3d(0,0,1), osg::Vec3d(0,0,waterLevel)));
     }
 
@@ -416,12 +417,19 @@ Water::Water(osg::Group *parent, osg::Group* sceneRoot, Resource::ResourceSystem
     createSimpleWaterStateSet(geom2, mFallback->getFallbackFloat("Water_Map_Alpha"));
     geom2->setNodeMask(Mask_SimpleWater);
     mWaterNode->addChild(geom2);
-
+ 
     mSceneRoot->addChild(mWaterNode);
 
     setHeight(mTop);
 
+    mRainIntensityUniform = new osg::Uniform("rainIntensity",(float) 0.0);
+
     updateWaterMaterial();
+}
+
+osg::Uniform *Water::getRainIntensityUniform()
+{
+    return mRainIntensityUniform.get();
 }
 
 void Water::updateWaterMaterial()
@@ -488,7 +496,7 @@ void Water::createSimpleWaterStateSet(osg::Node* node, float alpha)
     float fps = mFallback->getFallbackFloat("Water_SurfaceFPS");
 
     osg::ref_ptr<NifOsg::FlipController> controller (new NifOsg::FlipController(0, 1.f/fps, textures));
-    controller->setSource(boost::shared_ptr<SceneUtil::ControllerSource>(new SceneUtil::FrameTimeSource));
+    controller->setSource(std::shared_ptr<SceneUtil::ControllerSource>(new SceneUtil::FrameTimeSource));
     node->setUpdateCallback(controller);
 
     stateset->setTextureAttributeAndModes(0, textures[0], osg::StateAttribute::ON);
@@ -515,6 +523,7 @@ void Water::createShaderWaterStateSet(osg::Node* node, Reflection* reflection, R
     osg::ref_ptr<osg::Shader> fragmentShader (shaderMgr.getShader("water_fragment.glsl", defineMap, osg::Shader::FRAGMENT));
 
     osg::ref_ptr<osg::Texture2D> normalMap (new osg::Texture2D(readPngImage(mResourcePath + "/shaders/water_nm.png")));
+
     if (normalMap->getImage())
         normalMap->getImage()->flipVertical();
     normalMap->setWrap(osg::Texture::WRAP_S, osg::Texture::REPEAT);
@@ -529,6 +538,7 @@ void Water::createShaderWaterStateSet(osg::Node* node, Reflection* reflection, R
 
     shaderStateset->setTextureAttributeAndModes(0, normalMap, osg::StateAttribute::ON);
     shaderStateset->setTextureAttributeAndModes(1, reflection->getReflectionTexture(), osg::StateAttribute::ON);
+
     if (refraction)
     {
         shaderStateset->setTextureAttributeAndModes(2, refraction->getRefractionTexture(), osg::StateAttribute::ON);
@@ -549,6 +559,8 @@ void Water::createShaderWaterStateSet(osg::Node* node, Reflection* reflection, R
     }
 
     shaderStateset->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
+
+    shaderStateset->addUniform(mRainIntensityUniform.get());
 
     osg::ref_ptr<osg::Program> program (new osg::Program);
     program->addShader(vertexShader);

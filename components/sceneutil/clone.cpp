@@ -8,7 +8,7 @@
 #include <osgParticle/Emitter>
 #include <osgParticle/Program>
 
-#include <osgAnimation/MorphGeometry>
+#include <components/sceneutil/morphgeometry.hpp>
 
 #include <components/sceneutil/riggeometry.hpp>
 
@@ -38,7 +38,7 @@ namespace SceneUtil
             return operator()(processor);
         if (const osgParticle::ParticleSystemUpdater* updater = dynamic_cast<const osgParticle::ParticleSystemUpdater*>(node))
         {
-            osgParticle::ParticleSystemUpdater* cloned = osg::clone(updater, *this);
+            osgParticle::ParticleSystemUpdater* cloned = new osgParticle::ParticleSystemUpdater(*updater, osg::CopyOp::SHALLOW_COPY);
             mMap2[cloned] = updater->getParticleSystem(0);
             return cloned;
         }
@@ -49,52 +49,18 @@ namespace SceneUtil
     {
         if (const osgParticle::ParticleSystem* partsys = dynamic_cast<const osgParticle::ParticleSystem*>(drawable))
             return operator()(partsys);
-        if (dynamic_cast<const osgAnimation::MorphGeometry*>(drawable))
-        {
-            osg::CopyOp copyop = *this;
-            copyop.setCopyFlags(copyop.getCopyFlags()|osg::CopyOp::DEEP_COPY_ARRAYS);
 
-#if OSG_VERSION_LESS_THAN(3,5,0)
-            /*
-
-            Deep copy of primitives required to work around the following (bad?) code in osg::Geometry copy constructor:
-
-            if ((copyop.getCopyFlags() & osg::CopyOp::DEEP_COPY_ARRAYS))
-            {
-                if (_useVertexBufferObjects)
-                {
-                    // copying of arrays doesn't set up buffer objects so we'll need to force
-                    // Geometry to assign these, we'll do this by switching off VBO's then renabling them.
-                    setUseVertexBufferObjects(false);
-                    setUseVertexBufferObjects(true);
-                }
-            }
-
-            In case of DEEP_COPY_PRIMITIVES=Off, DEEP_COPY_ARRAYS=On, the above code makes a modification to the original const Geometry& we copied from,
-            causing problems if we relied on the original Geometry to remain static such as when it was added to an osgUtil::IncrementalCompileOperation.
-
-            Fixed in OSG 3.5 ( http://forum.openscenegraph.org/viewtopic.php?t=15217 ).
-
-            */
-
-            copyop.setCopyFlags(copyop.getCopyFlags()|osg::CopyOp::DEEP_COPY_PRIMITIVES);
-#endif
-
-            osg::Drawable* cloned = osg::clone(drawable, copyop);
-            return cloned;
-        }
-        if (dynamic_cast<const SceneUtil::RigGeometry*>(drawable))
+        if (dynamic_cast<const SceneUtil::RigGeometry*>(drawable) || dynamic_cast<const SceneUtil::MorphGeometry*>(drawable))
         {
             return osg::clone(drawable, *this);
         }
-
 
         return osg::CopyOp::operator()(drawable);
     }
 
     osgParticle::ParticleProcessor* CopyOp::operator() (const osgParticle::ParticleProcessor* processor) const
     {
-        osgParticle::ParticleProcessor* cloned = osg::clone(processor, *this);
+        osgParticle::ParticleProcessor* cloned = osg::clone(processor, osg::CopyOp::DEEP_COPY_CALLBACKS);
         mMap[cloned] = processor->getParticleSystem();
         return cloned;
     }

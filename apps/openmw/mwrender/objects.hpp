@@ -15,11 +15,6 @@ namespace osg
     class Group;
 }
 
-namespace osgUtil
-{
-    class IncrementalCompileOperation;
-}
-
 namespace Resource
 {
     class ResourceSystem;
@@ -42,7 +37,7 @@ class Animation;
 class PtrHolder : public osg::Object
 {
 public:
-    PtrHolder(MWWorld::Ptr ptr)
+    PtrHolder(const MWWorld::Ptr& ptr)
         : mPtr(ptr)
     {
     }

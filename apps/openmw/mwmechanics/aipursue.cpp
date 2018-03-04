@@ -50,8 +50,13 @@ bool AiPursue::execute (const MWWorld::Ptr& actor, CharacterController& characte
 
     //Set the target desition from the actor
     ESM::Pathgrid::Point dest = target.getRefData().getPosition().pos;
+    ESM::Position aPos = actor.getRefData().getPosition();
 
-    if (pathTo(actor, dest, duration, 100)) {
+    float pathTolerance = 100.0;
+
+    if (pathTo(actor, dest, duration, pathTolerance) &&
+        std::abs(dest.mZ - aPos.pos[2]) < pathTolerance)      // check the true distance in case the target is far away in Z-direction
+    {
         target.getClass().activate(target,actor).get()->execute(actor); //Arrest player when reached
         return true;
     }
@@ -73,7 +78,7 @@ MWWorld::Ptr AiPursue::getTarget() const
 
 void AiPursue::writeState(ESM::AiSequence::AiSequence &sequence) const
 {
-    std::auto_ptr<ESM::AiSequence::AiPursue> pursue(new ESM::AiSequence::AiPursue());
+    std::unique_ptr<ESM::AiSequence::AiPursue> pursue(new ESM::AiSequence::AiPursue());
     pursue->mTargetActorId = mTargetActorId;
 
     ESM::AiSequence::AiPackageContainer package;

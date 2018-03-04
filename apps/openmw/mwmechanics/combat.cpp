@@ -327,11 +327,17 @@ namespace MWMechanics
         {
             int weaphealth = weapon.getClass().getItemHealth(weapon);
 
-            const float fWeaponDamageMult = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fWeaponDamageMult")->getFloat();
-            float x = std::max(1.f, fWeaponDamageMult * damage);
+            bool godmode = attacker == MWMechanics::getPlayer() && MWBase::Environment::get().getWorld()->getGodModeState();
 
-            weaphealth -= std::min(int(x), weaphealth);
-            weapon.getCellRef().setCharge(weaphealth);
+            // weapon condition does not degrade when godmode is on
+            if (!godmode)
+            {
+                const float fWeaponDamageMult = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fWeaponDamageMult")->getFloat();
+                float x = std::max(1.f, fWeaponDamageMult * damage);
+
+                weaphealth -= std::min(int(x), weaphealth);
+                weapon.getCellRef().setCharge(weaphealth);
+            }
 
             // Weapon broken? unequip it
             if (weaphealth == 0)
@@ -405,31 +411,17 @@ namespace MWMechanics
         CreatureStats& stats = attacker.getClass().getCreatureStats(attacker);
         MWMechanics::DynamicStat<float> fatigue = stats.getFatigue();
         const float normalizedEncumbrance = attacker.getClass().getNormalizedEncumbrance(attacker);
-        float fatigueLoss = fFatigueAttackBase + normalizedEncumbrance * fFatigueAttackMult;
-        if (!weapon.isEmpty())
-            fatigueLoss += weapon.getClass().getWeight(weapon) * attackStrength * fWeaponFatigueMult;
-        fatigue.setCurrent(fatigue.getCurrent() - fatigueLoss);
-        stats.setFatigue(fatigue);
-    }
 
-    bool isEnvironmentCompatible(const MWWorld::Ptr& attacker, const MWWorld::Ptr& victim)
-    {
-        const MWWorld::Class& attackerClass = attacker.getClass();
-        MWBase::World* world = MWBase::Environment::get().getWorld();
+        bool godmode = attacker == MWMechanics::getPlayer() && MWBase::Environment::get().getWorld()->getGodModeState();
 
-        // If attacker is fish, victim must be in water
-        if (attackerClass.isPureWaterCreature(attacker))
+        if (!godmode)
         {
-            return world->isWading(victim);
+            float fatigueLoss = fFatigueAttackBase + normalizedEncumbrance * fFatigueAttackMult;
+            if (!weapon.isEmpty())
+                fatigueLoss += weapon.getClass().getWeight(weapon) * attackStrength * fWeaponFatigueMult;
+            fatigue.setCurrent(fatigue.getCurrent() - fatigueLoss);
+            stats.setFatigue(fatigue);
         }
-        
-        // If attacker can't swim, victim must not be in water
-        if (!attackerClass.canSwim(attacker))
-        {
-            return !world->isSwimming(victim);
-        }
-
-        return true;
     }
 
     float getFightDistanceBias(const MWWorld::Ptr& actor1, const MWWorld::Ptr& actor2)

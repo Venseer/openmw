@@ -6,6 +6,7 @@
 
 #include <osg/ref_ptr>
 #include <osg/Vec3f>
+#include <osg/Uniform>
 
 #include <components/settings/settings.hpp>
 
@@ -50,6 +51,8 @@ namespace MWRender
     {
         static const int CELL_SIZE = 8192;
 
+        osg::ref_ptr<osg::Uniform> mRainIntensityUniform;
+
         osg::ref_ptr<osg::Group> mParent;
         osg::ref_ptr<osg::Group> mSceneRoot;
         osg::ref_ptr<osg::PositionAttitudeTransform> mWaterNode;
@@ -58,7 +61,7 @@ namespace MWRender
         const Fallback::Map* mFallback;
         osg::ref_ptr<osgUtil::IncrementalCompileOperation> mIncrementalCompileOperation;
 
-        std::auto_ptr<RippleSimulation> mSimulation;
+        std::unique_ptr<RippleSimulation> mSimulation;
 
         osg::ref_ptr<Refraction> mRefraction;
         osg::ref_ptr<Reflection> mReflection;
@@ -110,6 +113,8 @@ namespace MWRender
         void update(float dt);
 
         void processChangedSettings(const Settings::CategorySettingVector& settings);
+
+        osg::Uniform *getRainIntensityUniform();
     };
 
 }

@@ -255,7 +255,7 @@ namespace MWWorld
         return MWBase::Environment::get().getMechanicsManager()->getEnemiesNearby(getPlayer()).size() != 0;
     }
 
-    void Player::markPosition(CellStore *markedCell, ESM::Position markedPosition)
+    void Player::markPosition(CellStore *markedCell, const ESM::Position& markedPosition)
     {
         mMarkedCell = markedCell;
         mMarkedPosition = markedPosition;
@@ -276,6 +276,29 @@ namespace MWWorld
         mAutoMove = false;
         mForwardBackward = 0;
         mTeleported = false;
+        mAttackingOrSpell = false;
+        mCurrentCrimeId = -1;
+        mPaidCrimeId = -1;
+        mLastKnownExteriorPosition = osg::Vec3f(0,0,0);
+
+        for (int i=0; i<ESM::Skill::Length; ++i)
+        {
+            mSaveSkills[i].setBase(0);
+            mSaveSkills[i].setModifier(0);
+        }
+
+        for (int i=0; i<ESM::Attribute::Length; ++i)
+        {
+            mSaveAttributes[i].setBase(0);
+            mSaveAttributes[i].setModifier(0);
+        }
+
+        mMarkedPosition.pos[0] = 0;
+        mMarkedPosition.pos[1] = 0;
+        mMarkedPosition.pos[2] = 0;
+        mMarkedPosition.rot[0] = 0;
+        mMarkedPosition.rot[1] = 0;
+        mMarkedPosition.rot[2] = 0;
     }
 
     void Player::write (ESM::ESMWriter& writer, Loading::Listener& progress) const
@@ -330,7 +353,7 @@ namespace MWWorld
 
             if (!player.mObject.mEnabled)
             {
-                std::cerr << "Savegame attempted to disable the player." << std::endl;
+                std::cerr << "Warning: Savegame attempted to disable the player." << std::endl;
                 player.mObject.mEnabled = true;
             }
 
@@ -357,7 +380,7 @@ namespace MWWorld
             }
             catch (...)
             {
-                std::cerr << "Player cell '" << player.mCellId.mWorldspace << "' no longer exists" << std::endl;
+                std::cerr << "Warning: Player cell '" << player.mCellId.mWorldspace << "' no longer exists" << std::endl;
                 // Cell no longer exists. The loader will have to choose a default cell.
                 mCellStore = NULL;
             }

@@ -22,8 +22,15 @@ struct AiFollowStorage : AiTemporaryBase
 {
     float mTimer;
     bool mMoving;
+    float mTargetAngleRadians;
+    bool mTurnActorToTarget;
 
-    AiFollowStorage() : mTimer(0.f), mMoving(false) {}
+    AiFollowStorage() :
+        mTimer(0.f),
+        mMoving(false),
+        mTargetAngleRadians(0.f),
+        mTurnActorToTarget(false)
+    {}
 };
 
 int AiFollow::mFollowIndexCounter = 0;
@@ -73,6 +80,15 @@ bool AiFollow::execute (const MWWorld::Ptr& actor, CharacterController& characte
 
     AiFollowStorage& storage = state.get<AiFollowStorage>();
 
+    bool& rotate = storage.mTurnActorToTarget;
+    if (rotate)
+    {
+        if (zTurn(actor, storage.mTargetAngleRadians))
+            rotate = false;
+
+        return false;
+    }
+
     // AiFollow requires the target to be in range and within sight for the initial activation
     if (!mActive)
     {
@@ -92,16 +108,23 @@ bool AiFollow::execute (const MWWorld::Ptr& actor, CharacterController& characte
 
     ESM::Position pos = actor.getRefData().getPosition(); //position of the actor
 
-    float followDistance = 180;
-    // When there are multiple actors following the same target, they form a group with each group member at 180*(i+1) distance to the target
-    int i=0;
+    // The distances below are approximations based on observations of the original engine.
+    // If only one actor is following the target, it uses 186.
+    // If there are multiple actors following the same target, they form a group with each group member at 313 + (130 * i) distance to the target.
+
+    short followDistance = 186;
     std::list<int> followers = MWBase::Environment::get().getMechanicsManager()->getActorsFollowingIndices(target);
-    followers.sort();
-    for (std::list<int>::iterator it = followers.begin(); it != followers.end(); ++it)
+    if (followers.size() >= 2)
     {
-        if (*it == mFollowIndex)
-            followDistance *= (i+1);
-        ++i;
+        followDistance = 313;
+        short i = 0;
+        followers.sort();
+        for (std::list<int>::iterator it = followers.begin(); it != followers.end(); ++it)
+        {
+            if (*it == mFollowIndex)
+                followDistance += 130 * i;
+            ++i;
+        }
     }
 
     if (!mAlwaysFollow) //Update if you only follow for a bit
@@ -137,13 +160,33 @@ bool AiFollow::execute (const MWWorld::Ptr& actor, CharacterController& characte
     //Set the target destination from the actor
     ESM::Pathgrid::Point dest = target.getRefData().getPosition().pos;
 
-    if (!storage.mMoving) 
-    {
-        const float threshold = 10; // to avoid constant switching between moving/stopping
+    short baseFollowDistance = followDistance;
+    short threshold = 30; // to avoid constant switching between moving/stopping
+    if (storage.mMoving)
+        followDistance -= threshold;
+    else
         followDistance += threshold;
+
+    osg::Vec3f targetPos(target.getRefData().getPosition().asVec3());
+    osg::Vec3f actorPos(actor.getRefData().getPosition().asVec3());
+
+    osg::Vec3f dir = targetPos - actorPos;
+    float targetDistSqr = dir.length2();
+
+    if (targetDistSqr <= followDistance * followDistance)
+    {
+        float faceAngleRadians = std::atan2(dir.x(), dir.y());
+
+        if (!zTurn(actor, faceAngleRadians, osg::DegreesToRadians(45.f)))
+        {
+            storage.mTargetAngleRadians = faceAngleRadians;
+            storage.mTurnActorToTarget = true;
+        }
+
+        return false;
     }
 
-    storage.mMoving = !pathTo(actor, dest, duration, followDistance); // Go to the destination
+    storage.mMoving = !pathTo(actor, dest, duration, baseFollowDistance); // Go to the destination
 
     if (storage.mMoving)
     {
@@ -181,7 +224,7 @@ bool AiFollow::isCommanded() const
 
 void AiFollow::writeState(ESM::AiSequence::AiSequence &sequence) const
 {
-    std::auto_ptr<ESM::AiSequence::AiFollow> follow(new ESM::AiSequence::AiFollow());
+    std::unique_ptr<ESM::AiSequence::AiFollow> follow(new ESM::AiSequence::AiFollow());
     follow->mData.mX = mX;
     follow->mData.mY = mY;
     follow->mData.mZ = mZ;

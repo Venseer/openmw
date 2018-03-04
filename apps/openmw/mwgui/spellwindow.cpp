@@ -4,9 +4,12 @@
 
 #include <MyGUI_InputManager.h>
 
+#include <components/settings/settings.hpp>
+
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
+#include "../mwbase/mechanicsmanager.hpp"
 
 #include "../mwworld/inventorystore.hpp"
 #include "../mwworld/class.hpp"
@@ -48,6 +51,8 @@ namespace MWGui
 
     void SpellWindow::onPinToggled()
     {
+        Settings::Manager::setBool("spells pin", "Windows", mPinned);
+
         MWBase::Environment::get().getWindowManager()->setSpellVisibility(!mPinned);
     }
 
@@ -57,22 +62,19 @@ namespace MWGui
             MWBase::Environment::get().getWindowManager()->toggleVisible(GW_Magic);
     }
 
-    void SpellWindow::open()
+    void SpellWindow::onOpen()
     {
         updateSpells();
     }
 
     void SpellWindow::onFrame(float dt) 
-    { 
-        if (mMainWidget->getVisible())
+    {
+        NoDrop::onFrame(dt);
+        mUpdateTimer += dt;
+        if (0.5f < mUpdateTimer)
         {
-            NoDrop::onFrame(dt);
-            mUpdateTimer += dt;
-            if (0.5f < mUpdateTimer)
-            {
-                mUpdateTimer = 0;
-                mSpellView->incrementalUpdate();
-            }
+            mUpdateTimer = 0;
+            mSpellView->incrementalUpdate();
         }
     }
 
@@ -191,6 +193,15 @@ namespace MWGui
 
     void SpellWindow::cycle(bool next)
     {
+        MWWorld::Ptr player = MWMechanics::getPlayer();
+
+        if (MWBase::Environment::get().getMechanicsManager()->isAttackingOrSpell(player))
+            return;
+
+        const MWMechanics::CreatureStats &stats = player.getClass().getCreatureStats(player);
+        if (stats.isParalyzed() || stats.getKnockedDown() || stats.isDead() || stats.getHitRecovery())
+            return;
+
         mSpellView->setModel(new SpellModel(MWMechanics::getPlayer()));
 
         SpellModel::ModelIndex selected = 0;

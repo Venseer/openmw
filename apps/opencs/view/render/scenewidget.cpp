@@ -56,6 +56,7 @@ RenderWidget::RenderWidget(QWidget *parent, Qt::WindowFlags f)
     traits->vsync = false;
 
     mView = new osgViewer::View;
+    updateCameraParameters( traits->width / static_cast<double>(traits->height) );
 
     osg::ref_ptr<osgQt::GraphicsWindowQt> window = new osgQt::GraphicsWindowQt(traits.get());
     QLayout* layout = new QHBoxLayout(this);
@@ -66,7 +67,6 @@ RenderWidget::RenderWidget(QWidget *parent, Qt::WindowFlags f)
     mView->getCamera()->setGraphicsContext(window);
     mView->getCamera()->setClearColor( osg::Vec4(0.2, 0.2, 0.6, 1.0) );
     mView->getCamera()->setViewport( new osg::Viewport(0, 0, traits->width, traits->height) );
-    mView->getCamera()->setProjectionMatrixAsPerspective(30.0f, static_cast<double>(traits->width)/static_cast<double>(traits->height), 1.0f, 10000.0f );
 
     SceneUtil::LightManager* lightMgr = new SceneUtil::LightManager;
     lightMgr->setStartLight(1);
@@ -172,7 +172,7 @@ void CompositeViewer::update()
 
 // ---------------------------------------------------
 
-SceneWidget::SceneWidget(boost::shared_ptr<Resource::ResourceSystem> resourceSystem, QWidget *parent, Qt::WindowFlags f,
+SceneWidget::SceneWidget(std::shared_ptr<Resource::ResourceSystem> resourceSystem, QWidget *parent, Qt::WindowFlags f,
     bool retrieveInput)
     : RenderWidget(parent, f)
     , mResourceSystem(resourceSystem)
@@ -187,6 +187,8 @@ SceneWidget::SceneWidget(boost::shared_ptr<Resource::ResourceSystem> resourceSys
     mCurrentCamControl = mFreeCamControl;
 
     mOrbitCamControl->setPickingMask(Mask_Reference | Mask_Terrain);
+
+    mOrbitCamControl->setConstRoll( CSMPrefs::get()["3D Scene Input"]["navi-orbit-const-roll"].isTrue() );
 
     // we handle lighting manually
     mView->setLightingMode(osgViewer::View::NO_LIGHT);
@@ -221,8 +223,8 @@ SceneWidget::SceneWidget(boost::shared_ptr<Resource::ResourceSystem> resourceSys
 
 SceneWidget::~SceneWidget()
 {
-    // Since we're holding on to the scene templates past the existence of this graphics context, we'll need to manually release the created objects
-    mResourceSystem->getSceneManager()->releaseGLObjects(mView->getCamera()->getGraphicsContext()->getState());
+    // Since we're holding on to the resources past the existence of this graphics context, we'll need to manually release the created objects
+    mResourceSystem->releaseGLObjects(mView->getCamera()->getGraphicsContext()->getState());
 }
 
 void SceneWidget::setLighting(Lighting *lighting)
@@ -370,6 +372,40 @@ void SceneWidget::settingChanged (const CSMPrefs::Setting *setting)
     {
         mOrbitCamControl->setOrbitSpeedMultiplier(setting->toDouble());
     }
+    else if (*setting=="3D Scene Input/navi-orbit-const-roll")
+    {
+        mOrbitCamControl->setConstRoll(setting->isTrue());
+    }
+    else if (*setting=="Rendering/camera-fov" ||
+             *setting=="Rendering/camera-ortho" ||
+             *setting=="Rendering/camera-ortho-size")
+    {
+        updateCameraParameters();
+    }
+}
+
+void RenderWidget::updateCameraParameters(double overrideAspect)
+{
+    const float nearDist = 1.0;
+    const float farDist = 1000.0;
+
+    if (CSMPrefs::get()["Rendering"]["camera-ortho"].isTrue())
+    {
+        const float size = CSMPrefs::get()["Rendering"]["camera-ortho-size"].toInt();
+        const float aspect = overrideAspect >= 0.0 ? overrideAspect : (width() / static_cast<double>(height()));
+        const float halfH = size * 10.0;
+        const float halfW = halfH * aspect;
+
+        mView->getCamera()->setProjectionMatrixAsOrtho(
+            -halfW, halfW, -halfH, halfH, nearDist, farDist);
+    }
+    else
+    { 
+        mView->getCamera()->setProjectionMatrixAsPerspective(
+            CSMPrefs::get()["Rendering"]["camera-fov"].toInt(),
+            static_cast<double>(width())/static_cast<double>(height()),
+            nearDist, farDist);
+    }
 }
 
 void SceneWidget::selectNavigationMode (const std::string& mode)
@@ -393,6 +429,7 @@ void SceneWidget::selectNavigationMode (const std::string& mode)
         mCurrentCamControl->setCamera(NULL);
         mCurrentCamControl = mOrbitCamControl;
         mOrbitCamControl->setCamera(getCamera());
+        mOrbitCamControl->reset();
     }
 }
 

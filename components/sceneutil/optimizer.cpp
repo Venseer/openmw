@@ -281,11 +281,11 @@ class CollectLowestTransformsVisitor : public BaseOptimizerVisitor
 
             ObjectStruct():_canBeApplied(true),_moreThanOneMatrixRequired(false) {}
 
-            void add(osg::Transform* transform)
+            void add(osg::Transform* transform, bool canOptimize)
             {
                 if (transform)
                 {
-                    if (transform->getDataVariance()!=osg::Transform::STATIC) _moreThanOneMatrixRequired=true;
+                    if (!canOptimize) _moreThanOneMatrixRequired=true;
                     else if (transform->getReferenceFrame()!=osg::Transform::RELATIVE_RF) _moreThanOneMatrixRequired=true;
                     else
                     {
@@ -322,7 +322,7 @@ class CollectLowestTransformsVisitor : public BaseOptimizerVisitor
                 itr!=_currentObjectList.end();
                 ++itr)
             {
-                _objectMap[*itr].add(transform);
+                _objectMap[*itr].add(transform, transform && isOperationPermissibleForObject(transform));
             }
         }
 
@@ -800,10 +800,16 @@ bool Optimizer::RemoveRedundantNodesVisitor::isOperationPermissible(osg::Node& n
            isOperationPermissibleForObject(&node);
 }
 
+void Optimizer::RemoveRedundantNodesVisitor::apply(osg::LOD& lod)
+{
+    // don't remove any direct children of the LOD because they are used to define each LOD level.
+    for (unsigned int i=0; i<lod.getNumChildren(); ++i)
+        traverse(*lod.getChild(i));
+}
+
 void Optimizer::RemoveRedundantNodesVisitor::apply(osg::Group& group)
 {
-    if (group.getNumChildren()==1 &&
-        typeid(group)==typeid(osg::Group) &&
+    if (typeid(group)==typeid(osg::Group) &&
         isOperationPermissible(group))
     {
         _redundantNodeList.insert(&group);
@@ -847,10 +853,11 @@ void Optimizer::RemoveRedundantNodesVisitor::removeRedundantNodes()
                 pitr!=parents.end();
                 ++pitr)
             {
+                unsigned int childIndex = (*pitr)->getChildIndex(group);
                 for (unsigned int i=0; i<group->getNumChildren(); ++i)
                 {
                     osg::Node* child = group->getChild(i);
-                    (*pitr)->addChild(child);
+                    (*pitr)->insertChild(childIndex++, child);
                 }
 
                 (*pitr)->removeChild(group);
@@ -1057,7 +1064,7 @@ void Optimizer::MergeGeometryVisitor::checkAllowedToMerge()
     {
         osg::StateSet* stateSet = *it;
         osg::StateSet::RenderBinMode mode = stateSet->getRenderBinMode();
-        if (override && (!mode & osg::StateSet::PROTECTED_RENDERBIN_DETAILS))
+        if (override && !(mode & osg::StateSet::PROTECTED_RENDERBIN_DETAILS))
             continue;
         if (mode & osg::StateSet::USE_RENDERBIN_DETAILS)
             renderingHint = stateSet->getRenderingHint();
@@ -1847,6 +1854,12 @@ bool Optimizer::MergeGroupsVisitor::isOperationPermissible(osg::Group& node)
            !node.getEventCallback() &&
            !node.getUpdateCallback() &&
             isOperationPermissibleForObject(&node);
+}
+
+void Optimizer::MergeGroupsVisitor::apply(osg::LOD &lod)
+{
+    // don't merge the direct children of the LOD because they are used to define each LOD level.
+    traverse(lod);
 }
 
 void Optimizer::MergeGroupsVisitor::apply(osg::Group &group)

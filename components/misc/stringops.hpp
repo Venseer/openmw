@@ -2,6 +2,7 @@
 #define MISC_STRINGOPS_H
 
 #include <cctype>
+#include <cstring>
 #include <string>
 #include <algorithm>
 
@@ -114,6 +115,59 @@ public:
             return ciLess(left, right);
         }
     };
+
+
+    /// Performs a binary search on a sorted container for a string that 'key' starts with
+    template<typename Iterator, typename T>
+    static Iterator partialBinarySearch(Iterator begin, Iterator end, const T& key)
+    {
+        const Iterator notFound = end;
+
+        while(begin < end)
+        {
+            const Iterator middle = begin + (std::distance(begin, end) / 2);
+
+            int comp = Misc::StringUtils::ciCompareLen((*middle), key, (*middle).size());
+
+            if(comp == 0)
+                return middle;
+            else if(comp > 0)
+                end = middle;
+            else
+                begin = middle + 1;
+        }
+
+        return notFound;
+    }
+
+    /** @brief Replaces all occurrences of a string in another string.
+     *
+     * @param str The string to operate on.
+     * @param what The string to replace.
+     * @param with The replacement string.
+     * @param whatLen The length of the string to replace.
+     * @param withLen The length of the replacement string.
+     *
+     * @return A reference to the string passed in @p str.
+     */
+    static std::string &replaceAll(std::string &str, const char *what, const char *with,
+                                   std::size_t whatLen=std::string::npos, std::size_t withLen=std::string::npos)
+    {
+        if (whatLen == std::string::npos)
+            whatLen = strlen(what);
+
+        if (withLen == std::string::npos)
+            withLen = strlen(with);
+
+        std::size_t found;
+        std::size_t offset = 0;
+        while((found = str.find(what, offset, whatLen)) != std::string::npos)
+        {
+              str.replace(found, whatLen, with, withLen);
+              offset = found + withLen;
+        }
+        return str;
+    }
 };
 
 }

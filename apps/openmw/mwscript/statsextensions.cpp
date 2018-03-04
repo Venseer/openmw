@@ -123,7 +123,7 @@ namespace MWScript
                     runtime.pop();
 
                     MWMechanics::AttributeValue attribute = ptr.getClass().getCreatureStats(ptr).getAttribute(mIndex);
-                    attribute.setBase (value - (attribute.getModified() - attribute.getBase()));
+                    attribute.setBase (value);
                     ptr.getClass().getCreatureStats(ptr).setAttribute(mIndex, attribute);
                 }
         };
@@ -148,7 +148,18 @@ namespace MWScript
                         .getCreatureStats(ptr)
                         .getAttribute(mIndex);
 
-                    attribute.setBase (std::min(100, attribute.getBase() + value));
+                    if (value == 0)
+                        return;
+
+                    if (((attribute.getBase() <= 0) && (value < 0))
+                        || ((attribute.getBase() >= 100) && (value > 0)))
+                        return;
+
+                    if (value < 0)
+                        attribute.setBase(std::max(0, attribute.getBase() + value));
+                    else
+                        attribute.setBase(std::min(100, attribute.getBase() + value));
+
                     ptr.getClass().getCreatureStats(ptr).setAttribute(mIndex, attribute);
                 }
         };
@@ -235,7 +246,7 @@ namespace MWScript
                         if (R()(runtime, false, true).isEmpty())
                         {
                             std::cerr
-                                << "Compensating for broken script in Morrowind.esm by "
+                                << "Warning: Compensating for broken script in Morrowind.esm by "
                                 << "ignoring remote access to dagoth_ur_1" << std::endl;
                             return;
                         }
@@ -350,12 +361,7 @@ namespace MWScript
 
                     MWMechanics::NpcStats& stats = ptr.getClass().getNpcStats (ptr);
 
-                    int newLevel = value - (stats.getSkill(mIndex).getModified() - stats.getSkill(mIndex).getBase());
-
-                    if (newLevel<0)
-                        newLevel = 0;
-
-                    stats.getSkill (mIndex).setBase (newLevel);
+                    stats.getSkill (mIndex).setBase (value);
                 }
         };
 
@@ -375,10 +381,21 @@ namespace MWScript
                     Interpreter::Type_Integer value = runtime[0].mInteger;
                     runtime.pop();
 
-                    MWMechanics::NpcStats& stats = ptr.getClass().getNpcStats(ptr);
+                    MWMechanics::SkillValue &skill = ptr.getClass()
+                        .getNpcStats(ptr)
+                        .getSkill(mIndex);
 
-                    stats.getSkill(mIndex).
-                        setBase (std::min(100, stats.getSkill(mIndex).getBase() + value));
+                    if (value == 0)
+                        return;
+
+                    if (((skill.getBase() <= 0) && (value < 0))
+                        || ((skill.getBase() >= 100) && (value > 0)))
+                        return;
+
+                    if (value < 0)
+                        skill.setBase(std::max(0, skill.getBase() + value));
+                    else
+                        skill.setBase(std::min(100, skill.getBase() + value));
                 }
         };
 
@@ -1172,6 +1189,14 @@ namespace MWScript
                 if (mNegativeEffect != -1)
                     currentValue -= effects.get(mNegativeEffect).getMagnitude();
 
+                // GetResist* should take in account elemental shields
+                if (mPositiveEffect == ESM::MagicEffect::ResistFire)
+                    currentValue += effects.get(ESM::MagicEffect::FireShield).getMagnitude();
+                if (mPositiveEffect == ESM::MagicEffect::ResistShock)
+                    currentValue += effects.get(ESM::MagicEffect::LightningShield).getMagnitude();
+                if (mPositiveEffect == ESM::MagicEffect::ResistFrost)
+                    currentValue += effects.get(ESM::MagicEffect::FrostShield).getMagnitude();
+
                 int ret = static_cast<int>(currentValue);
                 runtime.push(ret);
             }
@@ -1197,6 +1222,14 @@ namespace MWScript
                 float currentValue = effects.get(mPositiveEffect).getMagnitude();
                 if (mNegativeEffect != -1)
                     currentValue -= effects.get(mNegativeEffect).getMagnitude();
+
+                // SetResist* should take in account elemental shields
+                if (mPositiveEffect == ESM::MagicEffect::ResistFire)
+                    currentValue += effects.get(ESM::MagicEffect::FireShield).getMagnitude();
+                if (mPositiveEffect == ESM::MagicEffect::ResistShock)
+                    currentValue += effects.get(ESM::MagicEffect::LightningShield).getMagnitude();
+                if (mPositiveEffect == ESM::MagicEffect::ResistFrost)
+                    currentValue += effects.get(ESM::MagicEffect::FrostShield).getMagnitude();
 
                 int arg = runtime[0].mInteger;
                 runtime.pop();

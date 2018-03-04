@@ -3,7 +3,8 @@
 
 #include <vector>
 
-#include "widgets.hpp"
+#include "../mwmechanics/alchemy.hpp"
+
 #include "windowbase.hpp"
 
 namespace MWMechanics
@@ -22,8 +23,9 @@ namespace MWGui
     public:
         AlchemyWindow();
 
-        virtual void open();
-        virtual void exit();
+        virtual void onOpen();
+
+        void onResChange(int, int) { center(); }
 
     private:
         std::string mSuggestedPotionName;
@@ -41,6 +43,7 @@ namespace MWGui
         void onCancelButtonClicked(MyGUI::Widget* _sender);
         void onCreateButtonClicked(MyGUI::Widget* _sender);
         void onIngredientSelected(MyGUI::Widget* _sender);
+        void onAccept(MyGUI::EditBox*);
 
         void onSelectedItem(int index);
 
@@ -48,7 +51,7 @@ namespace MWGui
 
         void update();
 
-        std::auto_ptr<MWMechanics::Alchemy> mAlchemy;
+        std::unique_ptr<MWMechanics::Alchemy> mAlchemy;
 
         std::vector<ItemWidget*> mApparatus;
         std::vector<ItemWidget*> mIngredients;

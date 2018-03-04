@@ -69,7 +69,7 @@ private:
     void operator= (const PartHolder&);
     PartHolder(const PartHolder&);
 };
-typedef boost::shared_ptr<PartHolder> PartHolderPtr;
+typedef std::shared_ptr<PartHolder> PartHolderPtr;
 
 class Animation : public osg::Referenced
 {
@@ -146,13 +146,13 @@ protected:
     class AnimationTime : public SceneUtil::ControllerSource
     {
     private:
-        boost::shared_ptr<float> mTimePtr;
+        std::shared_ptr<float> mTimePtr;
 
     public:
 
-        void setTimePtr(boost::shared_ptr<float> time)
+        void setTimePtr(std::shared_ptr<float> time)
         { mTimePtr = time; }
-        boost::shared_ptr<float> getTimePtr() const
+        std::shared_ptr<float> getTimePtr() const
         { return mTimePtr; }
 
         virtual float getValue(osg::NodeVisitor* nv);
@@ -170,13 +170,13 @@ protected:
     struct AnimSource;
 
     struct AnimState {
-        boost::shared_ptr<AnimSource> mSource;
+        std::shared_ptr<AnimSource> mSource;
         float mStartTime;
         float mLoopStartTime;
         float mLoopStopTime;
         float mStopTime;
 
-        typedef boost::shared_ptr<float> TimePtr;
+        typedef std::shared_ptr<float> TimePtr;
         TimePtr mTime;
         float mSpeedMult;
 
@@ -212,7 +212,7 @@ protected:
     typedef std::map<std::string,AnimState> AnimStateMap;
     AnimStateMap mStates;
 
-    typedef std::vector<boost::shared_ptr<AnimSource> > AnimSourceList;
+    typedef std::vector<std::shared_ptr<AnimSource> > AnimSourceList;
     AnimSourceList mAnimSources;
 
     osg::ref_ptr<osg::Group> mInsert;
@@ -234,7 +234,7 @@ protected:
     typedef std::multimap<osg::ref_ptr<osg::Node>, osg::ref_ptr<osg::NodeCallback> > ControllerMap;
     ControllerMap mActiveControllers;
 
-    boost::shared_ptr<AnimationTime> mAnimationTimePtr[sNumBlendMasks];
+    std::shared_ptr<AnimationTime> mAnimationTimePtr[sNumBlendMasks];
 
     // Stored in all lowercase for a case-insensitive lookup
     typedef std::map<std::string, osg::ref_ptr<osg::MatrixTransform> > NodeMap;
@@ -251,7 +251,7 @@ protected:
     {
         std::string mModelName; // Just here so we don't add the same effect twice
         PartHolderPtr mObjects;
-        boost::shared_ptr<EffectAnimationTime> mAnimTime;
+        std::shared_ptr<EffectAnimationTime> mAnimTime;
         float mMaxControllerLength;
         int mEffectId;
         bool mLoop;
@@ -309,11 +309,12 @@ protected:
      */
     void setObjectRoot(const std::string &model, bool forceskeleton, bool baseonly, bool isCreature);
 
-    /** Adds the keyframe controllers in the specified model as a new animation source. Note that the .nif
-     * file extension will be replaced with .kf.
+    /** Adds the keyframe controllers in the specified model as a new animation source.
      * @note Later added animation sources have the highest priority when it comes to finding a particular animation.
+     * @param model The file to add the keyframes for. Note that the .nif file extension will be replaced with .kf.
+     * @param baseModel The filename of the mObjectRoot, only used for error messages.
     */
-    void addAnimSource(const std::string &model);
+    void addAnimSource(const std::string &model, const std::string& baseModel);
 
     /** Adds an additional light to the given node using the specified ESM record. */
     void addExtraLight(osg::ref_ptr<osg::Group> parent, const ESM::Light *light);
@@ -346,7 +347,8 @@ public:
 
     /// Set active flag on the object skeleton, if one exists.
     /// @see SceneUtil::Skeleton::setActive
-    void setActive(bool active);
+    /// 0 = Inactive, 1 = Active in place, 2 = Active
+    void setActive(int active);
 
     osg::Group* getOrCreateObjectRoot();
 
@@ -362,7 +364,7 @@ public:
      * @param texture override the texture specified in the model's materials - if empty, do not override
      * @note Will not add an effect twice.
      */
-    void addEffect (const std::string& model, int effectId, bool loop = false, const std::string& bonename = "", std::string texture = "");
+    void addEffect (const std::string& model, int effectId, bool loop = false, const std::string& bonename = "", const std::string& texture = "");
     void removeEffect (int effectId);
     void getLoopingEffects (std::vector<int>& out) const;
 

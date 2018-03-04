@@ -808,9 +808,15 @@ void CSMWorld::RefIdCollection::cloneRecord(const std::string& origin,
                                      const std::string& destination,
                                      const CSMWorld::UniversalId::Type type)
 {
-        std::auto_ptr<RecordBase> newRecord(mData.getRecord(mData.searchId(origin)).modifiedCopy());
+        std::unique_ptr<RecordBase> newRecord(mData.getRecord(mData.searchId(origin)).modifiedCopy());
         mAdapters.find(type)->second->setId(*newRecord, destination);
         mData.insertRecord(*newRecord, type, destination);
+}
+
+bool CSMWorld::RefIdCollection::touchRecord(const std::string& id)
+{
+    throw std::runtime_error("RefIdCollection::touchRecord is unimplemented");
+    return false;
 }
 
 void CSMWorld::RefIdCollection::appendRecord (const RecordBase& record,

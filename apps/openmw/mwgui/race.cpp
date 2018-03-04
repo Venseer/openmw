@@ -2,12 +2,9 @@
 
 #include <MyGUI_ListBox.h>
 #include <MyGUI_ImageBox.h>
-#include <MyGUI_RenderManager.h>
 #include <MyGUI_Gui.h>
 
 #include <osg/Texture2D>
-
-#include <boost/format.hpp>
 
 #include <components/myguiplatform/myguitexture.hpp>
 
@@ -123,9 +120,9 @@ namespace MWGui
             okButton->setCaption(MWBase::Environment::get().getWindowManager()->getGameSettingString("sOK", ""));
     }
 
-    void RaceDialog::open()
+    void RaceDialog::onOpen()
     {
-        WindowModal::open();
+        WindowModal::onOpen();
 
         updateRaces();
         updateSkills();
@@ -146,6 +143,7 @@ namespace MWGui
 
         const ESM::NPC& proto = mPreview->getPrototype();
         setRaceId(proto.mRace);
+        setGender(proto.isMale() ? GM_Male : GM_Female);
         recountParts();
 
         for (unsigned int i=0; i<mAvailableHeads.size(); ++i)
@@ -165,6 +163,8 @@ namespace MWGui
         size_t initialPos = mHeadRotate->getScrollRange()/2+mHeadRotate->getScrollRange()/10;
         mHeadRotate->setScrollPosition(initialPos);
         onHeadRotate(mHeadRotate, initialPos);
+
+        MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mRaceList);
     }
 
     void RaceDialog::setRaceId(const std::string &raceId)
@@ -185,8 +185,10 @@ namespace MWGui
         updateSpellPowers();
     }
 
-    void RaceDialog::close()
+    void RaceDialog::onClose()
     {
+        WindowModal::onClose();
+
         mPreviewImage->setRenderItemTexture(NULL);
 
         mPreviewTexture.reset(NULL);

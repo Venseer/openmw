@@ -12,6 +12,9 @@
 #include "../mwbase/soundmanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 
+#include "../mwworld/inventorystore.hpp"
+#include "../mwworld/class.hpp"
+
 #include "interpretercontext.hpp"
 #include "ref.hpp"
 
@@ -79,7 +82,7 @@ namespace MWScript
                     std::string sound = runtime.getStringLiteral (runtime[0].mInteger);
                     runtime.pop();
 
-                    MWBase::Environment::get().getSoundManager()->playSound (sound, 1.0, 1.0);
+                    MWBase::Environment::get().getSoundManager()->playSound(sound, 1.0, 1.0, MWSound::Type::Sfx, MWSound::PlayMode::NoEnv);
                 }
         };
 
@@ -98,7 +101,7 @@ namespace MWScript
                     Interpreter::Type_Float pitch = runtime[0].mFloat;
                     runtime.pop();
 
-                    MWBase::Environment::get().getSoundManager()->playSound (sound, volume, pitch);
+                    MWBase::Environment::get().getSoundManager()->playSound(sound, volume, pitch, MWSound::Type::Sfx, MWSound::PlayMode::NoEnv);
                 }
         };
 
@@ -119,9 +122,9 @@ namespace MWScript
                     runtime.pop();
 
                     MWBase::Environment::get().getSoundManager()->playSound3D(ptr, sound, 1.0, 1.0,
-                                                                              MWBase::SoundManager::Play_TypeSfx,
-                                                                              mLoop ? MWBase::SoundManager::Play_LoopRemoveAtDistance
-                                                                                     : MWBase::SoundManager::Play_Normal);
+                                                                              MWSound::Type::Sfx,
+                                                                              mLoop ? MWSound::PlayMode::LoopRemoveAtDistance
+                                                                                    : MWSound::PlayMode::Normal);
                 }
         };
 
@@ -148,9 +151,9 @@ namespace MWScript
                     runtime.pop();
 
                     MWBase::Environment::get().getSoundManager()->playSound3D(ptr, sound, volume, pitch,
-                                                                              MWBase::SoundManager::Play_TypeSfx,
-                                                                              mLoop ? MWBase::SoundManager::Play_LoopRemoveAtDistance
-                                                                                    : MWBase::SoundManager::Play_Normal);
+                                                                              MWSound::Type::Sfx,
+                                                                              mLoop ? MWSound::PlayMode::LoopRemoveAtDistance
+                                                                                    : MWSound::PlayMode::Normal);
 
                 }
         };
@@ -183,8 +186,22 @@ namespace MWScript
                     int index = runtime[0].mInteger;
                     runtime.pop();
 
-                    runtime.push (MWBase::Environment::get().getSoundManager()->getSoundPlaying (
-                        ptr, runtime.getStringLiteral (index)));
+                    bool ret = MWBase::Environment::get().getSoundManager()->getSoundPlaying (
+                                    ptr, runtime.getStringLiteral (index));
+
+                    // GetSoundPlaying called on an equipped item should also look for sounds played by the equipping actor.
+                    if (!ret && ptr.getContainerStore())
+                    {
+                        MWWorld::Ptr cont = MWBase::Environment::get().getWorld()->findContainer(ptr);
+
+                        if (!cont.isEmpty() && cont.getClass().hasInventoryStore(cont) && cont.getClass().getInventoryStore(cont).isEquipped(ptr))
+                        {
+                            ret = MWBase::Environment::get().getSoundManager()->getSoundPlaying (
+                                        cont, runtime.getStringLiteral (index));
+                        }
+                    }
+
+                    runtime.push(ret);
                 }
         };
 

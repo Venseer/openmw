@@ -1,13 +1,14 @@
 #include "constrainedfilestream.hpp"
 
 #include <streambuf>
+#include <algorithm>
 
 #include "lowlevelfile.hpp"
 
 namespace
 {
 // somewhat arbitrary though 64KB buffers didn't seem to improve performance any
-const size_t sBufferSize = 4096;
+const size_t sBufferSize = 8192;
 }
 
 namespace Files

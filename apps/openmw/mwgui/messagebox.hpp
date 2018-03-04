@@ -28,6 +28,8 @@ namespace MWGui
             bool createInteractiveMessageBox (const std::string& message, const std::vector<std::string>& buttons);
             bool isInteractiveMessageBox ();
 
+            const InteractiveMessageBox* getInteractiveMessageBox() const { return mInterMessageBoxe; }
+
             /// Remove all message boxes
             void clear();
 
@@ -77,11 +79,14 @@ namespace MWGui
             void mousePressed (MyGUI::Widget* _widget);
             int readPressedButton ();
 
+            MyGUI::Widget* getDefaultKeyFocus() override;
+
+            virtual bool exit() { return false; }
+
             bool mMarkedToDelete;
 
         private:
             void buttonActivated (MyGUI::Widget* _widget);
-            void onKeyPressed(MyGUI::Widget* _sender, MyGUI::KeyCode _key, MyGUI::Char _char);
 
             MessageBoxManager& mMessageBoxManager;
             MyGUI::EditBox* mMessageWidget;

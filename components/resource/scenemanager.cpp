@@ -1,6 +1,8 @@
 #include "scenemanager.hpp"
 
 #include <iostream>
+#include <cstdlib>
+
 #include <osg/Node>
 #include <osg/UserDataContainer>
 
@@ -120,6 +122,13 @@ namespace Resource
         {
             return _sharedStateSetList.size();
         }
+
+        void clearCache()
+        {
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_listMutex);
+            _sharedTextureList.clear();
+            _sharedStateSetList.clear();
+        }
     };
 
     /// Set texture filtering settings on textures contained in a FlipController.
@@ -235,12 +244,9 @@ namespace Resource
 
     void SceneManager::recreateShaders(osg::ref_ptr<osg::Node> node)
     {
-        Shader::ShaderVisitor shaderVisitor(*mShaderManager.get(), *mImageManager, "objects_vertex.glsl", "objects_fragment.glsl");
-        shaderVisitor.setForceShaders(mForceShaders);
-        shaderVisitor.setClampLighting(mClampLighting);
-        shaderVisitor.setForcePerPixelLighting(mForcePerPixelLighting);
-        shaderVisitor.setAllowedToModifyStateSets(false);
-        node->accept(shaderVisitor);
+        osg::ref_ptr<Shader::ShaderVisitor> shaderVisitor(createShaderVisitor());
+        shaderVisitor->setAllowedToModifyStateSets(false);
+        node->accept(*shaderVisitor);
     }
 
     void SceneManager::setClampLighting(bool clamp)
@@ -381,15 +387,25 @@ namespace Resource
     public:
         bool isReservedName(const std::string& name) const
         {
-            static std::set<std::string, Misc::StringUtils::CiComp> reservedNames;
+            if (name.empty())
+                return false;
+
+            static std::vector<std::string> reservedNames;
             if (reservedNames.empty())
             {
                 const char* reserved[] = {"Head", "Neck", "Chest", "Groin", "Right Hand", "Left Hand", "Right Wrist", "Left Wrist", "Shield Bone", "Right Forearm", "Left Forearm", "Right Upper Arm", "Left Upper Arm", "Right Foot", "Left Foot", "Right Ankle", "Left Ankle", "Right Knee", "Left Knee", "Right Upper Leg", "Left Upper Leg", "Right Clavicle", "Left Clavicle", "Weapon Bone", "Tail",
                                          "Bip01 L Hand", "Bip01 R Hand", "Bip01 Head", "Bip01 Spine1", "Bip01 Spine2", "Bip01 L Clavicle", "Bip01 R Clavicle", "bip01", "Root Bone", "Bip01 Neck",
                                          "BoneOffset", "AttachLight", "ArrowBone", "Camera"};
-                reservedNames = std::set<std::string, Misc::StringUtils::CiComp>(reserved, reserved + sizeof(reserved)/sizeof(reserved[0]));
+                reservedNames = std::vector<std::string>(reserved, reserved + sizeof(reserved)/sizeof(reserved[0]));
+
+                for (unsigned int i=0; i<sizeof(reserved)/sizeof(reserved[0]); ++i)
+                    reservedNames.push_back(std::string("Tri ") + reserved[i]);
+
+                std::sort(reservedNames.begin(), reservedNames.end(), Misc::StringUtils::ciLess);
             }
-            return reservedNames.find(name) != reservedNames.end();
+
+            std::vector<std::string>::iterator it = Misc::StringUtils::partialBinarySearch(reservedNames.begin(), reservedNames.end(), name);
+            return it != reservedNames.end();
         }
 
         virtual bool isOperationPermissibleForObjectImplementation(const SceneUtil::Optimizer* optimizer, const osg::Drawable* node,unsigned int option) const
@@ -416,12 +432,17 @@ namespace Resource
 
     bool canOptimize(const std::string& filename)
     {
-        // xmesh.nif can not be optimized because there are keyframes added in post
         size_t slashpos = filename.find_last_of("\\/");
         if (slashpos != std::string::npos && slashpos+1 < filename.size())
         {
             std::string basename = filename.substr(slashpos+1);
+            // xmesh.nif can not be optimized because there are keyframes added in post
             if (!basename.empty() && basename[0] == 'x')
+                return false;
+
+            // NPC skeleton files can not be optimized because of keyframes added in post
+            // (most of them are usually named like 'xbase_anim.nif' anyway, but not all of them :( )
+            if (basename.compare(0, 9, "base_anim") == 0 || basename.compare(0, 4, "skin") == 0)
                 return false;
         }
 
@@ -429,6 +450,29 @@ namespace Resource
         if (filename.find("vfx_pattern") != std::string::npos)
             return false;
         return true;
+    }
+
+    unsigned int getOptimizationOptions()
+    {
+        using namespace SceneUtil;
+        const char* env = getenv("OPENMW_OPTIMIZE");
+        unsigned int options = Optimizer::FLATTEN_STATIC_TRANSFORMS|Optimizer::REMOVE_REDUNDANT_NODES|Optimizer::MERGE_GEOMETRY;
+        if (env)
+        {
+            std::string str(env);
+
+            if(str.find("OFF")!=std::string::npos || str.find("0")!= std::string::npos) options = 0;
+
+            if(str.find("~FLATTEN_STATIC_TRANSFORMS")!=std::string::npos) options ^= Optimizer::FLATTEN_STATIC_TRANSFORMS;
+            else if(str.find("FLATTEN_STATIC_TRANSFORMS")!=std::string::npos) options |= Optimizer::FLATTEN_STATIC_TRANSFORMS;
+
+            if(str.find("~REMOVE_REDUNDANT_NODES")!=std::string::npos) options ^= Optimizer::REMOVE_REDUNDANT_NODES;
+            else if(str.find("REMOVE_REDUNDANT_NODES")!=std::string::npos) options |= Optimizer::REMOVE_REDUNDANT_NODES;
+
+            if(str.find("~MERGE_GEOMETRY")!=std::string::npos) options ^= Optimizer::MERGE_GEOMETRY;
+            else if(str.find("MERGE_GEOMETRY")!=std::string::npos) options |= Optimizer::MERGE_GEOMETRY;
+        }
+        return options;
     }
 
     osg::ref_ptr<const osg::Node> SceneManager::getTemplate(const std::string &name)
@@ -474,16 +518,8 @@ namespace Resource
             SetFilterSettingsControllerVisitor setFilterSettingsControllerVisitor(mMinFilter, mMagFilter, mMaxAnisotropy);
             loaded->accept(setFilterSettingsControllerVisitor);
 
-            Shader::ShaderVisitor shaderVisitor(*mShaderManager.get(), *mImageManager, "objects_vertex.glsl", "objects_fragment.glsl");
-            shaderVisitor.setForceShaders(mForceShaders);
-            shaderVisitor.setClampLighting(mClampLighting);
-            shaderVisitor.setForcePerPixelLighting(mForcePerPixelLighting);
-            shaderVisitor.setAutoUseNormalMaps(mAutoUseNormalMaps);
-            shaderVisitor.setNormalMapPattern(mNormalMapPattern);
-            shaderVisitor.setNormalHeightMapPattern(mNormalHeightMapPattern);
-            shaderVisitor.setAutoUseSpecularMaps(mAutoUseSpecularMaps);
-            shaderVisitor.setSpecularMapPattern(mSpecularMapPattern);
-            loaded->accept(shaderVisitor);
+            osg::ref_ptr<Shader::ShaderVisitor> shaderVisitor (createShaderVisitor());
+            loaded->accept(*shaderVisitor);
 
             // share state
             // do this before optimizing so the optimizer will be able to combine nodes more aggressively
@@ -497,7 +533,9 @@ namespace Resource
                 SceneUtil::Optimizer optimizer;
                 optimizer.setIsOperationPermissibleForObjectCallback(new CanOptimizeCallback);
 
-                optimizer.optimize(loaded, SceneUtil::Optimizer::FLATTEN_STATIC_TRANSFORMS|SceneUtil::Optimizer::REMOVE_REDUNDANT_NODES|SceneUtil::Optimizer::MERGE_GEOMETRY);
+                static const unsigned int options = getOptimizationOptions();
+
+                optimizer.optimize(loaded, options);
             }
 
             if (mIncrementalCompileOperation)
@@ -535,10 +573,15 @@ namespace Resource
     osg::ref_ptr<osg::Node> SceneManager::createInstance(const std::string& name)
     {
         osg::ref_ptr<const osg::Node> scene = getTemplate(name);
-        osg::ref_ptr<osg::Node> cloned = osg::clone(scene.get(), SceneUtil::CopyOp());
+        return createInstance(scene);
+    }
+
+    osg::ref_ptr<osg::Node> SceneManager::createInstance(const osg::Node *base)
+    {
+        osg::ref_ptr<osg::Node> cloned = osg::clone(base, SceneUtil::CopyOp());
 
         // add a ref to the original template, to hint to the cache that it's still being used and should be kept in cache
-        cloned->getOrCreateUserDataContainer()->addUserObject(new TemplateRef(scene));
+        cloned->getOrCreateUserDataContainer()->addUserObject(new TemplateRef(base));
 
         // we can skip any scene graphs without update callbacks since we know that particle emitters will have an update callback set
         if (cloned->getNumChildrenRequiringUpdateTraversal() > 0)
@@ -579,11 +622,21 @@ namespace Resource
     {
         mCache->releaseGLObjects(state);
         mInstanceCache->releaseGLObjects(state);
+
+        mShaderManager->releaseGLObjects(state);
+
+        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mSharedStateMutex);
+        mSharedStateManager->releaseGLObjects(state);
     }
 
     void SceneManager::setIncrementalCompileOperation(osgUtil::IncrementalCompileOperation *ico)
     {
         mIncrementalCompileOperation = ico;
+    }
+
+    osgUtil::IncrementalCompileOperation *SceneManager::getIncrementalCompileOperation()
+    {
+        return mIncrementalCompileOperation.get();
     }
 
     Resource::ImageManager* SceneManager::getImageManager()
@@ -605,12 +658,12 @@ namespace Resource
         if(magfilter == "nearest")
             mag = osg::Texture::NEAREST;
         else if(magfilter != "linear")
-            std::cerr<< "Invalid texture mag filter: "<<magfilter <<std::endl;
+            std::cerr<< "Warning: Invalid texture mag filter: "<<magfilter <<std::endl;
 
         if(minfilter == "nearest")
             min = osg::Texture::NEAREST;
         else if(minfilter != "linear")
-            std::cerr<< "Invalid texture min filter: "<<minfilter <<std::endl;
+            std::cerr<< "Warning: Invalid texture min filter: "<<minfilter <<std::endl;
 
         if(mipmap == "nearest")
         {
@@ -622,7 +675,7 @@ namespace Resource
         else if(mipmap != "none")
         {
             if(mipmap != "linear")
-                std::cerr<< "Invalid texture mipmap: "<<mipmap <<std::endl;
+                std::cerr<< "Warning: Invalid texture mipmap: "<<mipmap <<std::endl;
             if(min == osg::Texture::NEAREST)
                 min = osg::Texture::NEAREST_MIPMAP_LINEAR;
             else if(min == osg::Texture::LINEAR)
@@ -654,16 +707,25 @@ namespace Resource
 
     void SceneManager::updateCache(double referenceTime)
     {
-        mSharedStateMutex.lock();
-        mSharedStateManager->prune();
-        mSharedStateMutex.unlock();
-
         ResourceManager::updateCache(referenceTime);
 
         mInstanceCache->removeUnreferencedObjectsInCache();
+
+        mSharedStateMutex.lock();
+        mSharedStateManager->prune();
+        mSharedStateMutex.unlock();
     }
 
-    void SceneManager::reportStats(unsigned int frameNumber, osg::Stats *stats)
+    void SceneManager::clearCache()
+    {
+        ResourceManager::clearCache();
+
+        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mSharedStateMutex);
+        mSharedStateManager->clearCache();
+        mInstanceCache->clear();
+    }
+
+    void SceneManager::reportStats(unsigned int frameNumber, osg::Stats *stats) const
     {
         {
             OpenThreads::ScopedLock<OpenThreads::Mutex> lock(*mIncrementalCompileOperation->getToCompiledMutex());
@@ -678,6 +740,20 @@ namespace Resource
 
         stats->setAttribute(frameNumber, "Node", mCache->getCacheSize());
         stats->setAttribute(frameNumber, "Node Instance", mInstanceCache->getCacheSize());
+    }
+
+    Shader::ShaderVisitor *SceneManager::createShaderVisitor()
+    {
+        Shader::ShaderVisitor* shaderVisitor = new Shader::ShaderVisitor(*mShaderManager.get(), *mImageManager, "objects_vertex.glsl", "objects_fragment.glsl");
+        shaderVisitor->setForceShaders(mForceShaders);
+        shaderVisitor->setClampLighting(mClampLighting);
+        shaderVisitor->setForcePerPixelLighting(mForcePerPixelLighting);
+        shaderVisitor->setAutoUseNormalMaps(mAutoUseNormalMaps);
+        shaderVisitor->setNormalMapPattern(mNormalMapPattern);
+        shaderVisitor->setNormalHeightMapPattern(mNormalHeightMapPattern);
+        shaderVisitor->setAutoUseSpecularMaps(mAutoUseSpecularMaps);
+        shaderVisitor->setSpecularMapPattern(mSpecularMapPattern);
+        return shaderVisitor;
     }
 
 }

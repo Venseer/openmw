@@ -1,6 +1,5 @@
 #include "engine.hpp"
 
-#include <stdexcept>
 #include <iomanip>
 
 #include <boost/filesystem/fstream.hpp>
@@ -28,7 +27,6 @@
 #include <components/sceneutil/workqueue.hpp>
 
 #include <components/files/configurationmanager.hpp>
-#include <components/translation/translation.hpp>
 
 #include <components/version/version.hpp>
 
@@ -81,12 +79,13 @@ void OMW::Engine::executeLocalScripts()
     }
 }
 
-void OMW::Engine::frame(float frametime)
+bool OMW::Engine::frame(float frametime)
 {
     try
     {
         mStartTick = mViewer->getStartTick();
-        mEnvironment.setFrameDuration (frametime);
+
+        mEnvironment.setFrameDuration(frametime);
 
         // update input
         mEnvironment.getInputManager()->update(frametime, false);
@@ -95,7 +94,7 @@ void OMW::Engine::frame(float frametime)
         // If we are not currently rendering, then RenderItems will not be reused resulting in a memory leak upon changing widget textures (fixed in MyGUI 3.3.2),
         // and destroyed widgets will not be deleted (not fixed yet, https://github.com/MyGUI/mygui/issues/21)
         if (!mEnvironment.getInputManager()->isWindowVisible())
-            return;
+            return false;
 
         // sound
         if (mUseSound)
@@ -164,11 +163,6 @@ void OMW::Engine::frame(float frametime)
 
         // update GUI
         mEnvironment.getWindowManager()->onFrame(frametime);
-        if (mEnvironment.getStateManager()->getState()!=
-            MWBase::StateManager::State_NoGame)
-        {
-            mEnvironment.getWindowManager()->update();
-        }
 
         unsigned int frameNumber = mViewer->getFrameStamp()->getFrameNumber();
         osg::Stats* stats = mViewer->getViewerStats();
@@ -195,8 +189,9 @@ void OMW::Engine::frame(float frametime)
     }
     catch (const std::exception& e)
     {
-        std::cerr << "Error in framelistener: " << e.what() << std::endl;
+        std::cerr << "Error in frame: " << e.what() << std::endl;
     }
+    return true;
 }
 
 OMW::Engine::Engine(Files::ConfigurationManager& configurationManager)
@@ -280,8 +275,7 @@ void OMW::Engine::setResourceDir (const boost::filesystem::path& parResDir)
     mResDir = parResDir;
 }
 
-// Set start cell name (only interiors for now)
-
+// Set start cell name
 void OMW::Engine::setCell (const std::string& cellName)
 {
     mCellName = cellName;
@@ -421,16 +415,16 @@ void OMW::Engine::setWindowIcon()
     std::string windowIcon = (mResDir / "mygui" / "openmw.png").string();
     windowIconStream.open(windowIcon, std::ios_base::in | std::ios_base::binary);
     if (windowIconStream.fail())
-        std::cerr << "Failed to open " << windowIcon << std::endl;
+        std::cerr << "Error: Failed to open " << windowIcon << std::endl;
     osgDB::ReaderWriter* reader = osgDB::Registry::instance()->getReaderWriterForExtension("png");
     if (!reader)
     {
-        std::cerr << "Failed to read window icon, no png readerwriter found" << std::endl;
+        std::cerr << "Error: Failed to read window icon, no png readerwriter found" << std::endl;
         return;
     }
     osgDB::ReaderWriter::ReadResult result = reader->readImage(windowIconStream);
     if (!result.success())
-        std::cerr << "Failed to read " << windowIcon << ": " << result.message() << " code " << result.status() << std::endl;
+        std::cerr << "Error: Failed to read " << windowIcon << ": " << result.message() << " code " << result.status() << std::endl;
     else
     {
         osg::ref_ptr<osg::Image> image = result.getImage();
@@ -483,8 +477,20 @@ void OMW::Engine::prepareEngine (Settings::Manager & settings)
     }
 
     // find correct path to the game controller bindings
-    const std::string localdefault = mCfgMgr.getLocalPath().string() + "/gamecontrollerdb.txt";
-    const std::string globaldefault = mCfgMgr.getGlobalPath().string() + "/gamecontrollerdb.txt";
+    // File format for controller mappings is different for SDL <= 2.0.4, 2.0.5, and >= 2.0.6
+    SDL_version linkedSdlVersion;
+    SDL_GetVersion(&linkedSdlVersion);
+    std::string controllerFileName;
+    if (linkedSdlVersion.major == 2 && linkedSdlVersion.minor == 0 && linkedSdlVersion.patch <= 4) {
+        controllerFileName = "gamecontrollerdb_204.txt";
+    } else if (linkedSdlVersion.major == 2 && linkedSdlVersion.minor == 0 && linkedSdlVersion.patch == 5) {
+        controllerFileName = "gamecontrollerdb_205.txt";
+    } else {
+        controllerFileName = "gamecontrollerdb.txt";
+    }
+
+    const std::string localdefault = mCfgMgr.getLocalPath().string() + "/" + controllerFileName;
+    const std::string globaldefault = mCfgMgr.getGlobalPath().string() + "/" + controllerFileName;
     std::string gameControllerdb;
     if (boost::filesystem::exists(localdefault))
         gameControllerdb = localdefault;
@@ -526,7 +532,6 @@ void OMW::Engine::prepareEngine (Settings::Manager & settings)
 
     window->setStore(mEnvironment.getWorld()->getStore());
     window->initUI();
-    window->renderWorldMap();
 
     //Load translation data
     mTranslationDataStorage.setEncoder(mEncoder);
@@ -605,14 +610,14 @@ public:
         osgDB::ReaderWriter* readerwriter = osgDB::Registry::instance()->getReaderWriterForExtension(mScreenshotFormat);
         if (!readerwriter)
         {
-            std::cerr << "Can't write screenshot, no '" << mScreenshotFormat << "' readerwriter found" << std::endl;
+            std::cerr << "Error: Can't write screenshot, no '" << mScreenshotFormat << "' readerwriter found" << std::endl;
             return;
         }
 
         osgDB::ReaderWriter::WriteResult result = readerwriter->writeImage(image, outStream);
         if (!result.success())
         {
-            std::cerr << "Can't write screenshot: " << result.message() << " code " << result.status() << std::endl;
+            std::cerr << "Error: Can't write screenshot: " << result.message() << " code " << result.status() << std::endl;
         }
     }
 
@@ -655,6 +660,8 @@ void OMW::Engine::go()
         Settings::Manager::getString("screenshot format", "General")));
     mViewer->addEventHandler(mScreenCaptureHandler);
 
+    mEnvironment.setFrameRateLimit(Settings::Manager::getFloat("framerate limit", "Video"));
+
     // Create encoder
     ToUTF8::Utf8Encoder encoder (mEncoding);
     mEncoder = &encoder;
@@ -688,22 +695,15 @@ void OMW::Engine::go()
     // Start the main rendering loop
     osg::Timer frameTimer;
     double simulationTime = 0.0;
-    float framerateLimit = Settings::Manager::getFloat("framerate limit", "Video");
     while (!mViewer->done() && !mEnvironment.getStateManager()->hasQuitRequest())
     {
         double dt = frameTimer.time_s();
         frameTimer.setStartTick();
         dt = std::min(dt, 0.2);
 
-        bool guiActive = mEnvironment.getWindowManager()->isGuiMode();
-        if (!guiActive)
-            simulationTime += dt;
-
         mViewer->advance(simulationTime);
 
-        frame(dt);
-
-        if (!mEnvironment.getInputManager()->isWindowVisible())
+        if (!frame(dt))
         {
             OpenThreads::Thread::microSleep(5000);
             continue;
@@ -712,18 +712,17 @@ void OMW::Engine::go()
         {
             mViewer->eventTraversal();
             mViewer->updateTraversal();
+
+            mEnvironment.getWorld()->updateWindowManager();
+
             mViewer->renderingTraversals();
+
+            bool guiActive = mEnvironment.getWindowManager()->isGuiMode();
+            if (!guiActive)
+                simulationTime += dt;
         }
 
-        if (framerateLimit > 0.f)
-        {
-            double thisFrameTime = frameTimer.time_s();
-            double minFrameTime = 1.0 / framerateLimit;
-            if (thisFrameTime < minFrameTime)
-            {
-                OpenThreads::Thread::microSleep(1000*1000*(minFrameTime-thisFrameTime));
-            }
-        }
+        mEnvironment.limitFrameRate(frameTimer.time_s());
     }
 
     // Save user settings

@@ -23,13 +23,11 @@ void NiSkinInstance::post(NIFFile *nif)
     if(bnum != data->bones.size())
         nif->fail("Mismatch in NiSkinData bone count");
 
-    root->makeRootBone(&data->trafo);
-
     for(size_t i=0; i<bnum; i++)
     {
         if(bones[i].empty())
             nif->fail("Oops: Missing bone! Don't know how to handle this.");
-        bones[i]->makeBone(i, data->bones[i]);
+        bones[i]->setBone();
     }
 }
 
@@ -155,12 +153,12 @@ void NiPixelData::read(NIFStream *nif)
     // Unknown
     nif->skip(12);
 
-    mips = nif->getInt();
+    numberOfMipmaps = nif->getInt();
 
     // Bytes per pixel, should be bpp * 8
     /* int bytes = */ nif->getInt();
 
-    for(int i=0; i<mips; i++)
+    for(int i=0; i<numberOfMipmaps; i++)
     {
         // Image size and offset in the following data field
         Mipmap m;

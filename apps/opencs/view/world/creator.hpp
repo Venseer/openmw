@@ -31,6 +31,9 @@ namespace CSVWorld
             virtual void cloneMode(const std::string& originId,
                                    const CSMWorld::UniversalId::Type type) = 0;
 
+            /// Touches a record, if the creator supports it.
+            virtual void touch(const std::vector<CSMWorld::UniversalId>& ids) = 0;
+
             virtual void setEditLock (bool locked) = 0;
 
             virtual void toggleWidgets(bool active = true) = 0;
@@ -91,7 +94,7 @@ namespace CSVWorld
     Creator *CreatorFactory<CreatorT, scope>::makeCreator (CSMDoc::Document& document,
                                                            const CSMWorld::UniversalId& id) const
     {
-        std::auto_ptr<CreatorT> creator (new CreatorT (document.getData(), document.getUndoStack(), id));
+        std::unique_ptr<CreatorT> creator (new CreatorT (document.getData(), document.getUndoStack(), id));
 
         creator->setScope (scope);
 

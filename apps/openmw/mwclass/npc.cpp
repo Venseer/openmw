@@ -7,6 +7,7 @@
 #include <components/esm/loadmgef.hpp>
 #include <components/esm/loadnpc.hpp>
 #include <components/esm/npcstate.hpp>
+#include <components/settings/settings.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
@@ -303,7 +304,7 @@ namespace MWClass
     {
         if (!ptr.getRefData().getCustomData())
         {
-            std::auto_ptr<NpcCustomData> data(new NpcCustomData);
+            std::unique_ptr<NpcCustomData> data(new NpcCustomData);
 
             MWWorld::LiveCellRef<ESM::NPC> *ref = ptr.get<ESM::NPC>();
 
@@ -466,10 +467,10 @@ namespace MWClass
         // preload equipped items
         if (ptr.getClass().hasInventoryStore(ptr))
         {
-            MWWorld::InventoryStore& invStore = ptr.getClass().getInventoryStore(ptr);
+            const MWWorld::InventoryStore& invStore = ptr.getClass().getInventoryStore(ptr);
             for (int slot = 0; slot < MWWorld::InventoryStore::Slots; ++slot)
             {
-                MWWorld::ContainerStoreIterator equipped = invStore.getSlot(slot);
+                MWWorld::ConstContainerStoreIterator equipped = invStore.getSlot(slot);
                 if (equipped != invStore.end())
                 {
                     std::vector<ESM::PartReference> parts;
@@ -651,6 +652,9 @@ namespace MWClass
         if (MWMechanics::blockMeleeAttack(ptr, victim, weapon, damage, attackStrength))
             damage = 0;
 
+        if (victim == MWMechanics::getPlayer() && MWBase::Environment::get().getWorld()->getGodModeState())
+            damage = 0;
+
         MWMechanics::diseaseContact(victim, ptr);
 
         othercls.onHit(victim, damage, healthdmg, weapon, ptr, hitPosition, true);
@@ -715,6 +719,11 @@ namespace MWClass
             MWMechanics::resistNormalWeapon(ptr, attacker, object, damage);
 
         if (damage < 0.001f)
+            damage = 0;
+
+        bool godmode = ptr == MWMechanics::getPlayer() && MWBase::Environment::get().getWorld()->getGodModeState();
+
+        if (godmode)
             damage = 0;
 
         if (damage > 0.0f && !attacker.isEmpty())
@@ -802,7 +811,7 @@ namespace MWClass
 
         if (ishealth)
         {
-            if (!attacker.isEmpty())
+            if (!attacker.isEmpty() && !godmode)
                 damage = scaleDamage(damage, attacker, ptr);
 
             if (damage > 0.0f)
@@ -836,12 +845,12 @@ namespace MWClass
         }
     }
 
-    boost::shared_ptr<MWWorld::Action> Npc::activate (const MWWorld::Ptr& ptr,
+    std::shared_ptr<MWWorld::Action> Npc::activate (const MWWorld::Ptr& ptr,
         const MWWorld::Ptr& actor) const
     {
         // player got activated by another NPC
         if(ptr == MWMechanics::getPlayer())
-            return boost::shared_ptr<MWWorld::Action>(new MWWorld::ActionTalk(actor));
+            return std::shared_ptr<MWWorld::Action>(new MWWorld::ActionTalk(actor));
 
         // Werewolfs can't activate NPCs
         if(actor.getClass().isNpc() && actor.getClass().getNpcStats(actor).isWerewolf())
@@ -849,23 +858,42 @@ namespace MWClass
             const MWWorld::ESMStore &store = MWBase::Environment::get().getWorld()->getStore();
             const ESM::Sound *sound = store.get<ESM::Sound>().searchRandom("WolfNPC");
 
-            boost::shared_ptr<MWWorld::Action> action(new MWWorld::FailedAction("#{sWerewolfRefusal}"));
+            std::shared_ptr<MWWorld::Action> action(new MWWorld::FailedAction("#{sWerewolfRefusal}"));
             if(sound) action->setSound(sound->mId);
 
             return action;
         }
 
-        if(getCreatureStats(ptr).isDead())
-            return boost::shared_ptr<MWWorld::Action>(new MWWorld::ActionOpen(ptr, true));
-        if(ptr.getClass().getCreatureStats(ptr).getAiSequence().isInCombat())
-            return boost::shared_ptr<MWWorld::Action>(new MWWorld::FailedAction("#{sActorInCombat}"));
+        const MWMechanics::CreatureStats& stats = getCreatureStats(ptr);
+
+        if(stats.isDead())
+        {
+            bool canLoot = Settings::Manager::getBool ("can loot during death animation", "Game");
+
+            // by default user can loot friendly actors during death animation
+            if (canLoot && !stats.getAiSequence().isInCombat())
+                return std::shared_ptr<MWWorld::Action>(new MWWorld::ActionOpen(ptr));
+
+            // otherwise wait until death animation
+            if(stats.isDeathAnimationFinished())
+                return std::shared_ptr<MWWorld::Action>(new MWWorld::ActionOpen(ptr));
+
+            // death animation is not finished, do nothing
+            return std::shared_ptr<MWWorld::Action> (new MWWorld::FailedAction(""));
+        }
+
+        if(stats.getAiSequence().isInCombat())
+            return std::shared_ptr<MWWorld::Action>(new MWWorld::FailedAction(""));
+
         if(getCreatureStats(actor).getStance(MWMechanics::CreatureStats::Stance_Sneak)
-                || ptr.getClass().getCreatureStats(ptr).getKnockedDown())
-            return boost::shared_ptr<MWWorld::Action>(new MWWorld::ActionOpen(ptr)); // stealing
+            || ptr.getClass().getCreatureStats(ptr).getKnockedDown())
+            return std::shared_ptr<MWWorld::Action>(new MWWorld::ActionOpen(ptr)); // stealing
+
         // Can't talk to werewolfs
         if(ptr.getClass().isNpc() && ptr.getClass().getNpcStats(ptr).isWerewolf())
-            return boost::shared_ptr<MWWorld::Action> (new MWWorld::FailedAction(""));
-        return boost::shared_ptr<MWWorld::Action>(new MWWorld::ActionTalk(ptr));
+            return std::shared_ptr<MWWorld::Action> (new MWWorld::FailedAction(""));
+
+        return std::shared_ptr<MWWorld::Action>(new MWWorld::ActionTalk(ptr));
     }
 
     MWWorld::ContainerStore& Npc::getContainerStore (const MWWorld::Ptr& ptr)
@@ -1001,17 +1029,21 @@ namespace MWClass
 
     void Npc::registerSelf()
     {
-        boost::shared_ptr<Class> instance (new Npc);
+        std::shared_ptr<Class> instance (new Npc);
         registerClass (typeid (ESM::NPC).name(), instance);
     }
 
     bool Npc::hasToolTip(const MWWorld::ConstPtr& ptr) const
     {
-        if (!ptr.getRefData().getCustomData())
+        if (!ptr.getRefData().getCustomData() || MWBase::Environment::get().getWindowManager()->isGuiMode())
             return true;
 
         const NpcCustomData& customData = ptr.getRefData().getCustomData()->asNpcCustomData();
-        return !customData.mNpcStats.getAiSequence().isInCombat() || customData.mNpcStats.isDead();
+
+        if (customData.mNpcStats.isDead() && customData.mNpcStats.isDeathAnimationFinished())
+            return true;
+
+        return !customData.mNpcStats.getAiSequence().isInCombat();
     }
 
     MWGui::ToolTipInfo Npc::getToolTipInfo (const MWWorld::ConstPtr& ptr, int count) const
@@ -1079,7 +1111,7 @@ namespace MWClass
         const MWWorld::Store<ESM::GameSetting> &store = world->getStore().get<ESM::GameSetting>();
 
         MWMechanics::NpcStats &stats = getNpcStats(ptr);
-        MWWorld::InventoryStore &invStore = getInventoryStore(ptr);
+        const MWWorld::InventoryStore &invStore = getInventoryStore(ptr);
 
         float fUnarmoredBase1 = store.find("fUnarmoredBase1")->getFloat();
         float fUnarmoredBase2 = store.find("fUnarmoredBase2")->getFloat();
@@ -1088,7 +1120,7 @@ namespace MWClass
         float ratings[MWWorld::InventoryStore::Slots];
         for(int i = 0;i < MWWorld::InventoryStore::Slots;i++)
         {
-            MWWorld::ContainerStoreIterator it = invStore.getSlot(i);
+            MWWorld::ConstContainerStoreIterator it = invStore.getSlot(i);
             if (it == invStore.end() || it->getTypeName() != typeid(ESM::Armor).name())
             {
                 // unarmored
@@ -1097,6 +1129,15 @@ namespace MWClass
             else
             {
                 ratings[i] = it->getClass().getEffectiveArmorRating(*it, ptr);
+
+                // Take in account armor condition
+                const bool hasHealth = it->getClass().hasItemHealth(*it);
+                if (hasHealth)
+                {
+                    int armorHealth = it->getClass().getItemHealth(*it);
+                    int armorMaxHealth = it->getClass().getItemMaxHealth(*it);
+                    ratings[i] *= (float(armorHealth) / armorMaxHealth);
+                }
             }
         }
 
@@ -1169,8 +1210,8 @@ namespace MWClass
                         return "";
                 }
 
-                MWWorld::InventoryStore &inv = Npc::getInventoryStore(ptr);
-                MWWorld::ContainerStoreIterator boots = inv.getSlot(MWWorld::InventoryStore::Slot_Boots);
+                const MWWorld::InventoryStore &inv = Npc::getInventoryStore(ptr);
+                MWWorld::ConstContainerStoreIterator boots = inv.getSlot(MWWorld::InventoryStore::Slot_Boots);
                 if(boots == inv.end() || boots->getTypeName() != typeid(ESM::Armor).name())
                     return (name == "left") ? "FootBareLeft" : "FootBareRight";
 
@@ -1251,7 +1292,7 @@ namespace MWClass
             if (!ptr.getRefData().getCustomData())
             {
                 // Create a CustomData, but don't fill it from ESM records (not needed)
-                std::auto_ptr<NpcCustomData> data (new NpcCustomData);
+                std::unique_ptr<NpcCustomData> data (new NpcCustomData);
                 ptr.getRefData().setCustomData (data.release());
             }
         }

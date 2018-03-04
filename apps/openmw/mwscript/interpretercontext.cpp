@@ -137,7 +137,7 @@ namespace MWScript
 
 
     InterpreterContext::InterpreterContext (
-        MWScript::Locals *locals, MWWorld::Ptr reference, const std::string& targetId)
+        MWScript::Locals *locals, const MWWorld::Ptr& reference, const std::string& targetId)
     : mLocals (locals), mReference (reference), mTargetId (targetId)
     {
         // If we run on a reference (local script, dialogue script or console with object
@@ -463,7 +463,7 @@ namespace MWScript
         const MWWorld::Ptr ref = MWBase::Environment::get().getWorld()->getPtr(name, false);
 
         // If the objects are in different worldspaces, return a large value (just like vanilla)
-        if (ref.getCell()->getCell()->getCellId().mWorldspace != ref2.getCell()->getCell()->getCellId().mWorldspace)
+        if (!ref.isInCell() || !ref2.isInCell() || ref.getCell()->getCell()->getCellId().mWorldspace != ref2.getCell()->getCell()->getCellId().mWorldspace)
             return std::numeric_limits<float>::max();
 
         double diff[3];
@@ -478,7 +478,7 @@ namespace MWScript
 
     void InterpreterContext::executeActivation(MWWorld::Ptr ptr, MWWorld::Ptr actor)
     {
-        boost::shared_ptr<MWWorld::Action> action = (ptr.getClass().activate(ptr, actor));
+        std::shared_ptr<MWWorld::Action> action = (ptr.getClass().activate(ptr, actor));
         action->execute (actor);
         if (action->getTarget() != MWWorld::Ptr() && action->getTarget() != ptr)
         {

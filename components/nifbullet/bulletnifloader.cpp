@@ -49,7 +49,7 @@ BulletNifLoader::~BulletNifLoader()
 {
 }
 
-osg::ref_ptr<Resource::BulletShape> BulletNifLoader::load(const Nif::NIFFilePtr nif)
+osg::ref_ptr<Resource::BulletShape> BulletNifLoader::load(const Nif::NIFFilePtr& nif)
 {
     mShape = new Resource::BulletShape;
 
@@ -75,7 +75,7 @@ osg::ref_ptr<Resource::BulletShape> BulletNifLoader::load(const Nif::NIFFilePtr 
 
     if (findBoundingBox(node))
     {
-        std::auto_ptr<btCompoundShape> compound (new btCompoundShape);
+        std::unique_ptr<btCompoundShape> compound (new btCompoundShape);
 
         btBoxShape* boxShape = new btBoxShape(getbtVector(mShape->mCollisionBoxHalfExtents));
         btTransform transform = btTransform::getIdentity();
@@ -203,8 +203,7 @@ void BulletNifLoader::handleNode(const Nif::Node *node, int flags,
             // affecting the entire subtree of this node
             Nif::NiStringExtraData *sd = (Nif::NiStringExtraData*)e;
 
-            // not sure what the difference between NCO and NCC is, or if there even is one
-            if (sd->string == "NCO" || sd->string == "NCC")
+            if (Misc::StringUtils::ciCompareLen(sd->string, "NC", 2) == 0)
             {
                 // No collision. Use an internal flag setting to mark this.
                 flags |= 0x800;
@@ -246,22 +245,12 @@ void BulletNifLoader::handleNiTriShape(const Nif::NiTriShape *shape, int flags, 
 {
     assert(shape != NULL);
 
-    // Interpret flags
-    bool hidden    = (flags&Nif::NiNode::Flag_Hidden) != 0;
-    bool collide   = (flags&Nif::NiNode::Flag_MeshCollision) != 0;
-    bool bbcollide = (flags&Nif::NiNode::Flag_BBoxCollision) != 0;
-
     // If the object was marked "NCO" earlier, it shouldn't collide with
     // anything. So don't do anything.
     if ((flags & 0x800))
     {
         return;
     }
-
-    if (!collide && !bbcollide && hidden)
-        // This mesh apparently isn't being used for anything, so don't
-        // bother setting it up.
-        return;
 
     if (!shape->skin.empty())
         isAnimated = false;

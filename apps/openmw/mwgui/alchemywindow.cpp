@@ -1,10 +1,11 @@
 #include "alchemywindow.hpp"
 
 #include <MyGUI_Gui.h>
+#include <MyGUI_Button.h>
+#include <MyGUI_EditBox.h>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
-#include "../mwbase/soundmanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 
 #include "../mwmechanics/magiceffects.hpp"
@@ -20,6 +21,7 @@
 #include "sortfilteritemmodel.hpp"
 #include "itemview.hpp"
 #include "itemwidget.hpp"
+#include "widgets.hpp"
 
 namespace MWGui
 {
@@ -55,37 +57,45 @@ namespace MWGui
         mCreateButton->eventMouseButtonClick += MyGUI::newDelegate(this, &AlchemyWindow::onCreateButtonClicked);
         mCancelButton->eventMouseButtonClick += MyGUI::newDelegate(this, &AlchemyWindow::onCancelButtonClicked);
 
+        mNameEdit->eventEditSelectAccept += MyGUI::newDelegate(this, &AlchemyWindow::onAccept);
+
         center();
+    }
+
+    void AlchemyWindow::onAccept(MyGUI::EditBox* sender)
+    {
+        onCreateButtonClicked(sender);
     }
 
     void AlchemyWindow::onCancelButtonClicked(MyGUI::Widget* _sender)
     {
-        exit();
+        MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Alchemy);
     }
 
     void AlchemyWindow::onCreateButtonClicked(MyGUI::Widget* _sender)
     {
         MWMechanics::Alchemy::Result result = mAlchemy->create (mNameEdit->getCaption ());
+        MWBase::WindowManager *winMgr = MWBase::Environment::get().getWindowManager();
 
         switch (result)
         {
         case MWMechanics::Alchemy::Result_NoName:
-            MWBase::Environment::get().getWindowManager()->messageBox("#{sNotifyMessage37}");
+            winMgr->messageBox("#{sNotifyMessage37}");
             break;
         case MWMechanics::Alchemy::Result_NoMortarAndPestle:
-            MWBase::Environment::get().getWindowManager()->messageBox("#{sNotifyMessage45}");
+            winMgr->messageBox("#{sNotifyMessage45}");
             break;
         case MWMechanics::Alchemy::Result_LessThanTwoIngredients:
-            MWBase::Environment::get().getWindowManager()->messageBox("#{sNotifyMessage6a}");
+            winMgr->messageBox("#{sNotifyMessage6a}");
             break;
         case MWMechanics::Alchemy::Result_Success:
-            MWBase::Environment::get().getWindowManager()->messageBox("#{sPotionSuccess}");
-            MWBase::Environment::get().getSoundManager()->playSound("potion success", 1.f, 1.f);
+            winMgr->messageBox("#{sPotionSuccess}");
+            winMgr->playSound("potion success");
             break;
         case MWMechanics::Alchemy::Result_NoEffects:
         case MWMechanics::Alchemy::Result_RandomFailure:
-            MWBase::Environment::get().getWindowManager()->messageBox("#{sNotifyMessage8}");
-            MWBase::Environment::get().getSoundManager()->playSound("potion fail", 1.f, 1.f);
+            winMgr->messageBox("#{sNotifyMessage8}");
+            winMgr->playSound("potion fail");
             break;
         }
 
@@ -101,8 +111,9 @@ namespace MWGui
         update();
     }
 
-    void AlchemyWindow::open()
+    void AlchemyWindow::onOpen()
     {
+        mAlchemy->clear();
         mAlchemy->setAlchemist (MWMechanics::getPlayer());
 
         InventoryItemModel* model = new InventoryItemModel(MWMechanics::getPlayer());
@@ -122,17 +133,13 @@ namespace MWGui
             if (!iter->isEmpty())
             {
                 mApparatus.at (index)->setUserString ("ToolTipType", "ItemPtr");
-                mApparatus.at (index)->setUserData (*iter);
+                mApparatus.at (index)->setUserData (MWWorld::Ptr(*iter));
             }
         }
 
         update();
-    }
 
-    void AlchemyWindow::exit() {
-        mAlchemy->clear();
-        MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Alchemy);
-        MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Inventory);
+        MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mNameEdit);
     }
 
     void AlchemyWindow::onIngredientSelected(MyGUI::Widget* _sender)
@@ -151,7 +158,7 @@ namespace MWGui
             update();
 
             std::string sound = item.getClass().getUpSoundId(item);
-            MWBase::Environment::get().getSoundManager()->playSound (sound, 1.0, 1.0);
+            MWBase::Environment::get().getWindowManager()->playSound(sound);
         }
     }
 
@@ -190,9 +197,9 @@ namespace MWGui
                 continue;
 
             ingredient->setUserString("ToolTipType", "ItemPtr");
-            ingredient->setUserData(item);
+            ingredient->setUserData(MWWorld::Ptr(item));
 
-            ingredient->setCount(ingredient->getUserData<MWWorld::Ptr>()->getRefData().getCount());
+            ingredient->setCount(item.getRefData().getCount());
         }
 
         mItemView->update();

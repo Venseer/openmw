@@ -6,6 +6,8 @@
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_Gui.h>
 
+#include <components/settings/settings.hpp>
+
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
 #include "../mwbase/windowmanager.hpp"
@@ -100,12 +102,13 @@ namespace MWGui
     {
         MyGUI::ProgressBar* pt;
         getWidget(pt, name);
-        pt->setProgressRange(max);
-        pt->setProgressPosition(val);
 
         std::stringstream out;
         out << val << "/" << max;
-        setText(tname, out.str().c_str());
+        setText(tname, out.str());
+
+        pt->setProgressRange(std::max(0, max));
+        pt->setProgressPosition(std::max(0, val));
     }
 
     void StatsWindow::setPlayerName(const std::string& playerName)
@@ -145,14 +148,18 @@ namespace MWGui
 
     void StatsWindow::setValue (const std::string& id, const MWMechanics::DynamicStat<float>& value)
     {
-        int current = std::max(0, static_cast<int>(value.getCurrent()));
+        int current = static_cast<int>(value.getCurrent());
         int modified = static_cast<int>(value.getModified());
+
+        // Fatigue can be negative
+        if (id != "FBar")
+            current = std::max(0, current);
 
         setBar (id, id + "T", current, modified);
 
         // health, magicka, fatigue tooltip
         MyGUI::Widget* w;
-        std::string valStr =  MyGUI::utility::toString(current) + "/" + MyGUI::utility::toString(modified);
+        std::string valStr =  MyGUI::utility::toString(current) + " / " + MyGUI::utility::toString(modified);
         if (id == "HBar")
         {
             getWidget(w, "Health");
@@ -238,7 +245,32 @@ namespace MWGui
             }
 
             if (value.getBase() < 100)
+            {
+                nameWidget->setUserString("Visible_SkillMaxed", "false");
+                nameWidget->setUserString("UserData^Hidden_SkillMaxed", "true");
+                nameWidget->setUserString("Visible_SkillProgressVBox", "true");
+                nameWidget->setUserString("UserData^Hidden_SkillProgressVBox", "false");
+
+                valueWidget->setUserString("Visible_SkillMaxed", "false");
+                valueWidget->setUserString("UserData^Hidden_SkillMaxed", "true");
+                valueWidget->setUserString("Visible_SkillProgressVBox", "true");
+                valueWidget->setUserString("UserData^Hidden_SkillProgressVBox", "false");
+
+                setSkillProgress(nameWidget, value.getProgress(), parSkill);
                 setSkillProgress(valueWidget, value.getProgress(), parSkill);
+            }
+            else
+            {
+                nameWidget->setUserString("Visible_SkillMaxed", "true");
+                nameWidget->setUserString("UserData^Hidden_SkillMaxed", "false");
+                nameWidget->setUserString("Visible_SkillProgressVBox", "false");
+                nameWidget->setUserString("UserData^Hidden_SkillProgressVBox", "true");
+
+                valueWidget->setUserString("Visible_SkillMaxed", "true");
+                valueWidget->setUserString("UserData^Hidden_SkillMaxed", "false");
+                valueWidget->setUserString("Visible_SkillProgressVBox", "false");
+                valueWidget->setUserString("UserData^Hidden_SkillProgressVBox", "true");
+            }
         }
     }
 
@@ -265,9 +297,6 @@ namespace MWGui
 
     void StatsWindow::onFrame (float dt)
     {
-        if (!mMainWidget->getVisible())
-            return;
-
         NoDrop::onFrame(dt);
 
         MWWorld::Ptr player = MWMechanics::getPlayer();
@@ -455,7 +484,9 @@ namespace MWGui
                     mSkillWidgets[mSkillWidgets.size()-1-i]->setUserString("UserData^Hidden_SkillProgressVBox", "false");
 
                     setSkillProgress(mSkillWidgets[mSkillWidgets.size()-1-i], stat.getProgress(), skillId);
-                } else {
+                }
+                else
+                {
                     mSkillWidgets[mSkillWidgets.size()-1-i]->setUserString("Visible_SkillMaxed", "true");
                     mSkillWidgets[mSkillWidgets.size()-1-i]->setUserString("UserData^Hidden_SkillMaxed", "false");
 
@@ -589,13 +620,13 @@ namespace MWGui
                         if (rankData.mSkill1 > 0)
                             text += "\n#{sNeedOneSkill} " + MyGUI::utility::toString(rankData.mSkill1);
                         if (rankData.mSkill2 > 0)
-                            text += "\n#{sNeedTwoSkills} " + MyGUI::utility::toString(rankData.mSkill2);
+                            text += " #{sand} #{sNeedTwoSkills} " + MyGUI::utility::toString(rankData.mSkill2);
                     }
                 }
 
                 w->setUserString("ToolTipType", "Layout");
-                w->setUserString("ToolTipLayout", "TextToolTip");
-                w->setUserString("Caption_Text", text);
+                w->setUserString("ToolTipLayout", "FactionToolTip");
+                w->setUserString("Caption_FactionText", text);
             }
         }
 
@@ -645,6 +676,8 @@ namespace MWGui
 
     void StatsWindow::onPinToggled()
     {
+        Settings::Manager::setBool("stats pin", "Windows", mPinned);
+
         MWBase::Environment::get().getWindowManager()->setHMSVisibility(!mPinned);
     }
 

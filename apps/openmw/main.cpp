@@ -1,5 +1,4 @@
 #include <iostream>
-#include <cstdio>
 
 #include <components/version/version.hpp>
 #include <components/files/configurationmanager.hpp>
@@ -7,11 +6,8 @@
 #include <components/fallback/validate.hpp>
 
 #include <SDL_messagebox.h>
-#include <SDL_main.h>
 #include "engine.hpp"
 
-#include <boost/iostreams/concepts.hpp>
-#include <boost/iostreams/stream_buffer.hpp>
 #include <boost/filesystem/fstream.hpp>
 
 #if defined(_WIN32)
@@ -24,6 +20,9 @@
 #include <cstdlib>
 #endif
 
+#if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
+#include <unistd.h>
+#endif
 
 #if (defined(__APPLE__) || (defined(__linux)  &&  !defined(ANDROID)) || (defined(__unix) &&  !defined(ANDROID)) || defined(__posix))
     #define USE_CRASH_CATCHER 1
@@ -37,7 +36,6 @@ extern int cc_install_handlers(int argc, char **argv, int num_signals, int *sigs
 extern int is_debugger_attached(void);
 #endif
 
-#include <boost/version.hpp>
 /**
  * Workaround for problems with whitespaces in paths in older versions of Boost library
  */
@@ -145,7 +143,7 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
             ("fallback", bpo::value<FallbackMap>()->default_value(FallbackMap(), "")
             ->multitoken()->composing(), "fallback values")
 
-        ("no-grab", "Don't grab mouse cursor")
+        ("no-grab", bpo::value<bool>()->implicit_value(true)->default_value(false), "Don't grab mouse cursor")
 
         ("export-fonts", bpo::value<bool>()->implicit_value(true)
             ->default_value(false), "Export Morrowind .fnt fonts to PNG image and XML file in current directory")
@@ -181,7 +179,7 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
     Version::Version v = Version::getOpenmwVersion(variables["resources"].as<Files::EscapeHashString>().toStdString());
     std::cout << v.describe() << std::endl;
 
-    engine.setGrabMouse(!variables.count("no-grab"));
+    engine.setGrabMouse(!variables["no-grab"].as<bool>());
 
     // Font encoding settings
     std::string encoding(variables["encoding"].as<Files::EscapeHashString>().toStdString());
@@ -196,6 +194,9 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
     std::string local(variables["data-local"].as<Files::EscapeHashString>().toStdString());
     if (!local.empty())
     {
+        if (local.front() == '\"')
+            local = local.substr(1, local.length() - 2);
+
         dataDirs.push_back(Files::PathContainer::value_type(local));
     }
 
@@ -230,7 +231,7 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
     engine.setCell(variables["start"].as<Files::EscapeHashString>().toStdString());
     engine.setSkipMenu (variables["skip-menu"].as<bool>(), variables["new-game"].as<bool>());
     if (!variables["skip-menu"].as<bool>() && variables["new-game"].as<bool>())
-        std::cerr << "new-game used without skip-menu -> ignoring it" << std::endl;
+        std::cerr << "Warning: new-game used without skip-menu -> ignoring it" << std::endl;
 
     // scripts
     engine.setCompileAll(variables["script-all"].as<bool>());
@@ -289,7 +290,11 @@ private:
 };
 #endif
 
+#ifdef ANDROID
+extern "C" int SDL_main(int argc, char**argv)
+#else
 int main(int argc, char**argv)
+#endif
 {
 #if defined(__APPLE__)
     setenv("OSG_GL_TEXTURE_STORAGE", "OFF", 0);
@@ -310,7 +315,7 @@ int main(int argc, char**argv)
 
     boost::filesystem::ofstream logfile;
 
-    std::auto_ptr<OMW::Engine> engine;
+    std::unique_ptr<OMW::Engine> engine;
 
     int ret = 0;
     try

@@ -1,14 +1,8 @@
 #include "lightmanager.hpp"
 
-#include <stdexcept>
-
-#include <osg/NodeVisitor>
-
 #include <osgUtil/CullVisitor>
 
 #include <components/sceneutil/util.hpp>
-
-#include <boost/functional/hash.hpp>
 
 namespace SceneUtil
 {
@@ -215,12 +209,21 @@ namespace SceneUtil
         mLights.push_back(l);
     }
 
+    /* similar to the boost::hash_combine */
+    template <class T>
+    inline void hash_combine(std::size_t& seed, const T& v)
+    {
+        std::hash<T> hasher;
+        seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+    }
+
     osg::ref_ptr<osg::StateSet> LightManager::getLightListStateSet(const LightList &lightList, unsigned int frameNum)
     {
+
         // possible optimization: return a StateSet containing all requested lights plus some extra lights (if a suitable one exists)
         size_t hash = 0;
         for (unsigned int i=0; i<lightList.size();++i)
-            boost::hash_combine(hash, lightList[i]->mLightSource->getId());
+            hash_combine(hash, lightList[i]->mLightSource->getId());
 
         LightStateSetMap& stateSetCache = mStateSetCache[frameNum%2];
 
@@ -381,21 +384,23 @@ namespace SceneUtil
     {
         osgUtil::CullVisitor* cv = static_cast<osgUtil::CullVisitor*>(nv);
 
+        bool pushedState = pushLightState(node, cv);
+        traverse(node, nv);
+        if (pushedState)
+            cv->popStateSet();
+    }
+
+    bool LightListCallback::pushLightState(osg::Node *node, osgUtil::CullVisitor *cv)
+    {
         if (!mLightManager)
         {
-            mLightManager = findLightManager(nv->getNodePath());
+            mLightManager = findLightManager(cv->getNodePath());
             if (!mLightManager)
-            {
-                traverse(node, nv);
-                return;
-            }
+                return false;
         }
 
         if (!(cv->getCurrentCamera()->getCullMask() & mLightManager->getLightingMask()))
-        {
-            traverse(node, nv);
-            return;
-        }
+            return false;
 
         // Possible optimizations:
         // - cull list of lights by the camera frustum
@@ -404,9 +409,9 @@ namespace SceneUtil
 
         // update light list if necessary
         // makes sure we don't update it more than once per frame when rendering with multiple cameras
-        if (mLastFrameNumber != nv->getTraversalNumber())
+        if (mLastFrameNumber != cv->getTraversalNumber())
         {
-            mLastFrameNumber = nv->getTraversalNumber();
+            mLastFrameNumber = cv->getTraversalNumber();
 
             // Don't use Camera::getViewMatrix, that one might be relative to another camera!
             const osg::RefMatrix* viewMatrix = cv->getCurrentRenderStage()->getInitialViewMatrix();
@@ -415,12 +420,14 @@ namespace SceneUtil
             // get the node bounds in view space
             // NB do not node->getBound() * modelView, that would apply the node's transformation twice
             osg::BoundingSphere nodeBound;
-            osg::Group* group = node->asGroup();
-            if (group)
+            osg::Transform* transform = node->asTransform();
+            if (transform)
             {
-                for (unsigned int i=0; i<group->getNumChildren(); ++i)
-                    nodeBound.expandBy(group->getChild(i)->getBound());
+                for (unsigned int i=0; i<transform->getNumChildren(); ++i)
+                    nodeBound.expandBy(transform->getChild(i)->getBound());
             }
+            else
+                nodeBound = node->getBound();
             osg::Matrixf mat = *cv->getModelViewMatrix();
             transformBoundingSphere(mat, nodeBound);
 
@@ -469,20 +476,16 @@ namespace SceneUtil
                     while (lightList.size() > maxLights)
                         lightList.pop_back();
                 }
-                stateset = mLightManager->getLightListStateSet(lightList, nv->getTraversalNumber());
+                stateset = mLightManager->getLightListStateSet(lightList, cv->getTraversalNumber());
             }
             else
-                stateset = mLightManager->getLightListStateSet(mLightList, nv->getTraversalNumber());
+                stateset = mLightManager->getLightListStateSet(mLightList, cv->getTraversalNumber());
 
 
             cv->pushStateSet(stateset);
-
-            traverse(node, nv);
-
-            cv->popStateSet();
+            return true;
         }
-        else
-            traverse(node, nv);
+        return false;
     }
 
 }

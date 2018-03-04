@@ -17,6 +17,12 @@ namespace osg
     class PositionAttitudeTransform;
 }
 
+namespace osgUtil
+{
+    class IntersectionVisitor;
+    class Intersector;
+}
+
 namespace Resource
 {
     class ResourceSystem;
@@ -59,6 +65,8 @@ namespace MWRender
     class Pathgrid;
     class Camera;
     class Water;
+    class TerrainStorage;
+    class LandManager;
 
     class RenderingManager : public MWRender::RenderingInterface
     {
@@ -74,6 +82,9 @@ namespace MWRender
         SceneUtil::WorkQueue* getWorkQueue();
         SceneUtil::UnrefQueue* getUnrefQueue();
         Terrain::World* getTerrain();
+
+        osg::Uniform* mUniformNear;
+        osg::Uniform* mUniformFar;
 
         void preloadCommonAssets();
 
@@ -99,6 +110,8 @@ namespace MWRender
 
         void addCell(const MWWorld::CellStore* store);
         void removeCell(const MWWorld::CellStore* store);
+
+        void enableTerrain(bool enable);
 
         void updatePtr(const MWWorld::Ptr& old, const MWWorld::Ptr& updated);
 
@@ -190,13 +203,19 @@ namespace MWRender
 
         void exportSceneGraph(const MWWorld::Ptr& ptr, const std::string& filename, const std::string& format);
 
+        LandManager* getLandManager() const;
+
     private:
         void updateProjectionMatrix();
         void updateTextureFiltering();
         void updateAmbient();
         void setFogColor(const osg::Vec4f& color);
 
-        void reportStats();
+        void reportStats() const;
+
+        osg::ref_ptr<osgUtil::IntersectionVisitor> getIntersectionVisitor(osgUtil::Intersector* intersector, bool ignorePlayer, bool ignoreActors);
+
+        osg::ref_ptr<osgUtil::IntersectionVisitor> mIntersectionVisitor;
 
         osg::ref_ptr<osgViewer::Viewer> mViewer;
         osg::ref_ptr<osg::Group> mRootNode;
@@ -208,15 +227,16 @@ namespace MWRender
 
         osg::ref_ptr<osg::Light> mSunLight;
 
-        std::auto_ptr<Pathgrid> mPathgrid;
-        std::auto_ptr<Objects> mObjects;
-        std::auto_ptr<Water> mWater;
-        std::auto_ptr<Terrain::World> mTerrain;
-        std::auto_ptr<SkyManager> mSky;
-        std::auto_ptr<EffectManager> mEffectManager;
+        std::unique_ptr<Pathgrid> mPathgrid;
+        std::unique_ptr<Objects> mObjects;
+        std::unique_ptr<Water> mWater;
+        std::unique_ptr<Terrain::World> mTerrain;
+        TerrainStorage* mTerrainStorage;
+        std::unique_ptr<SkyManager> mSky;
+        std::unique_ptr<EffectManager> mEffectManager;
         osg::ref_ptr<NpcAnimation> mPlayerAnimation;
         osg::ref_ptr<SceneUtil::PositionAttitudeTransform> mPlayerNode;
-        std::auto_ptr<Camera> mCamera;
+        std::unique_ptr<Camera> mCamera;
         osg::Vec3f mCurrentCameraPos;
 
         osg::ref_ptr<StateUpdater> mStateUpdater;

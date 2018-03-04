@@ -36,10 +36,9 @@ private:
 Skeleton::Skeleton()
     : mBoneCacheInit(false)
     , mNeedToUpdateBoneMatrices(true)
-    , mActive(true)
+    , mActive(Active)
     , mLastFrameNumber(0)
-    , mTraversedEvenFrame(false)
-    , mTraversedOddFrame(false)
+    , mLastCullFrameNumber(0)
 {
 
 }
@@ -50,8 +49,7 @@ Skeleton::Skeleton(const Skeleton &copy, const osg::CopyOp &copyop)
     , mNeedToUpdateBoneMatrices(true)
     , mActive(copy.mActive)
     , mLastFrameNumber(0)
-    , mTraversedEvenFrame(false)
-    , mTraversedOddFrame(false)
+    , mLastCullFrameNumber(0)
 {
 
 }
@@ -115,11 +113,6 @@ void Skeleton::updateBoneMatrices(unsigned int traversalNumber)
 
     mLastFrameNumber = traversalNumber;
 
-    if (mLastFrameNumber % 2 == 0)
-        mTraversedEvenFrame = true;
-    else
-        mTraversedOddFrame = true;
-
     if (mNeedToUpdateBoneMatrices)
     {
         if (mRootBone.get())
@@ -127,38 +120,40 @@ void Skeleton::updateBoneMatrices(unsigned int traversalNumber)
             for (unsigned int i=0; i<mRootBone->mChildren.size(); ++i)
                 mRootBone->mChildren[i]->update(NULL);
         }
-        else
-            std::cerr << "no root bone" << std::endl;
 
         mNeedToUpdateBoneMatrices = false;
     }
 }
 
-void Skeleton::setActive(bool active)
+void Skeleton::setActive(ActiveType active)
 {
     mActive = active;
 }
 
 bool Skeleton::getActive() const
 {
-    return mActive;
+    return mActive != Inactive;
 }
 
 void Skeleton::markDirty()
 {
-    mTraversedEvenFrame = false;
-    mTraversedOddFrame = false;
+    mLastFrameNumber = 0;
     mBoneCache.clear();
     mBoneCacheInit = false;
 }
 
 void Skeleton::traverse(osg::NodeVisitor& nv)
 {
-    if (!getActive() && nv.getVisitorType() == osg::NodeVisitor::UPDATE_VISITOR
-            // need to process at least 2 frames before shutting off update, since we need to have both frame-alternating RigGeometries initialized
-            // this would be more naturally handled if the double-buffering was implemented in RigGeometry itself rather than in a FrameSwitch decorator node
-            && mLastFrameNumber != 0 && mTraversedEvenFrame && mTraversedOddFrame)
-        return;
+    if (nv.getVisitorType() == osg::NodeVisitor::UPDATE_VISITOR)
+    {
+        if (mActive == Inactive && mLastFrameNumber != 0)
+            return;
+        if (mActive == SemiActive && mLastFrameNumber != 0 && mLastCullFrameNumber+3 <= nv.getTraversalNumber())
+            return;
+    }
+    else if (nv.getVisitorType() == osg::NodeVisitor::CULL_VISITOR)
+        mLastCullFrameNumber = nv.getTraversalNumber();
+
     osg::Group::traverse(nv);
 }
 
@@ -188,7 +183,7 @@ void Bone::update(const osg::Matrixf* parentMatrixInSkeletonSpace)
 {
     if (!mNode)
     {
-        std::cerr << "Bone without node " << std::endl;
+        std::cerr << "Error: Bone without node " << std::endl;
         return;
     }
     if (parentMatrixInSkeletonSpace)

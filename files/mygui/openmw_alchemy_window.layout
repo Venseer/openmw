@@ -6,12 +6,13 @@
 
         <!-- Name -->
 
-        <Widget type="TextBox" skin="SandText" position="10 10 65 24">
+        <Widget type="TextBox" skin="SandText" position="10 8 65 30">
             <Property key="Caption" value="#{sName}"/>
             <Property key="TextAlign" value="Left"/>
         </Widget>
 
-        <Widget type="EditBox" skin="MW_TextEdit" position="70 10 492 24" align="Top Left HStretch" name="NameEdit"/>
+        <Widget type="EditBox" skin="MW_TextEdit" position="70 8 492 30" align="Top Left HStretch" name="NameEdit">
+        </Widget>
 
 
         <!-- Apparatus -->
@@ -75,9 +76,7 @@
 
         <Widget type="HBox" skin="" position="110 374 452 24" align="Bottom Right">
 
-            <Widget type="Widget">
-                <UserString key="HStretch" value="true"/>
-            </Widget>
+            <Widget type="Spacer"/>
 
             <Widget type="AutoSizedButton" skin="MW_Button" name="CreateButton">
                 <Property key="Caption" value="#{sCreate}"/>

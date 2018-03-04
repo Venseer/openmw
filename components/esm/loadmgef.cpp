@@ -1,9 +1,6 @@
 #include "loadmgef.hpp"
 
-#include <stdexcept>
 #include <sstream>
-
-#include <boost/lexical_cast.hpp>
 
 #include "esmreader.hpp"
 #include "esmwriter.hpp"
@@ -383,6 +380,7 @@ static std::map<short,std::string> genNameMap()
     names[131] ="sEffectBoundGloves";
     names[128] ="sEffectBoundHelm";
     names[125] ="sEffectBoundLongbow";
+    names[126] ="sEffectExtraSpell";
     names[121] ="sEffectBoundLongsword";
     names[122] ="sEffectBoundMace";
     names[130] ="sEffectBoundShield";
@@ -524,7 +522,7 @@ const std::string &MagicEffect::effectIdToString(short effectID)
 {
     std::map<short,std::string>::const_iterator name = sNames.find(effectID);
     if(name == sNames.end())
-        throw std::runtime_error(std::string("Unimplemented effect ID ")+boost::lexical_cast<std::string>(effectID));
+        throw std::runtime_error(std::string("Unimplemented effect ID ")+std::to_string(effectID));
 
     return name->second;
 }

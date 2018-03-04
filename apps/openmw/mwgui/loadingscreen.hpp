@@ -43,6 +43,8 @@ namespace MWGui
 
         virtual void setVisible(bool visible);
 
+        double getTargetFrameRate() const;
+
     private:
         void findSplashScreens();
         bool needToDrawLoadingScreen();
@@ -70,13 +72,12 @@ namespace MWGui
         MyGUI::TextBox* mLoadingText;
         MyGUI::ScrollBar* mProgressBar;
         BackgroundImage* mBackgroundImage;
+        BackgroundImage* mSceneImage;
 
         std::vector<std::string> mSplashScreens;
 
-        // TODO: add releaseGLObjects() for mTexture
-
         osg::ref_ptr<osg::Texture2D> mTexture;
-        std::auto_ptr<MyGUI::ITexture> mGuiTexture;
+        std::unique_ptr<MyGUI::ITexture> mGuiTexture;
 
         void changeWallpaper();
 
