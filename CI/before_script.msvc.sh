@@ -216,6 +216,8 @@ case $VS_VERSION in
 	15|15.0|2017 )
 		GENERATOR="Visual Studio 15 2017"
 		TOOLSET="vc140"
+		TOOLSET_REAL="vc141"
+		MSVC_REAL_VER="15"
 		MSVC_VER="14"
 		MSVC_YEAR="2015"
 		MSVC_DISPLAY_YEAR="2017"
@@ -224,6 +226,8 @@ case $VS_VERSION in
 	14|14.0|2015 )
 		GENERATOR="Visual Studio 14 2015"
 		TOOLSET="vc140"
+		TOOLSET_REAL="vc140"
+		MSVC_REAL_VER="14"
 		MSVC_VER="14"
 		MSVC_YEAR="2015"
 		MSVC_DISPLAY_YEAR="2015"
@@ -232,6 +236,8 @@ case $VS_VERSION in
 	12|12.0|2013 )
 		GENERATOR="Visual Studio 12 2013"
 		TOOLSET="vc120"
+		TOOLSET_REAL="vc120"
+		MSVC_REAL_VER="12"
 		MSVC_VER="12"
 		MSVC_YEAR="2013"
 		MSVC_DISPLAY_YEAR="2013"
@@ -303,25 +309,25 @@ if [ -z $SKIP_DOWNLOAD ]; then
 	# Boost
 	if [ -z $APPVEYOR ]; then
 		download "Boost 1.61.0" \
-			"http://sourceforge.net/projects/boost/files/boost-binaries/1.61.0/boost_1_61_0-msvc-${MSVC_VER}.0-${BITS}.exe" \
+			"https://sourceforge.net/projects/boost/files/boost-binaries/1.61.0/boost_1_61_0-msvc-${MSVC_VER}.0-${BITS}.exe" \
 			"boost-1.61.0-msvc${MSVC_YEAR}-win${BITS}.exe"
 	fi
 
 	# Bullet
 	download "Bullet 2.86" \
-		"http://www.lysator.liu.se/~ace/OpenMW/deps/Bullet-2.86-msvc${MSVC_YEAR}-win${BITS}.7z" \
+		"https://www.lysator.liu.se/~ace/OpenMW/deps/Bullet-2.86-msvc${MSVC_YEAR}-win${BITS}.7z" \
 		"Bullet-2.86-msvc${MSVC_YEAR}-win${BITS}.7z"
 
 	# FFmpeg
 	download "FFmpeg 3.2.4" \
-		"http://ffmpeg.zeranoe.com/builds/win${BITS}/shared/ffmpeg-3.2.4-win${BITS}-shared.zip" \
+		"https://ffmpeg.zeranoe.com/builds/win${BITS}/shared/ffmpeg-3.2.4-win${BITS}-shared.zip" \
 		"ffmpeg-3.2.4-win${BITS}.zip" \
-		"http://ffmpeg.zeranoe.com/builds/win${BITS}/dev/ffmpeg-3.2.4-win${BITS}-dev.zip" \
+		"https://ffmpeg.zeranoe.com/builds/win${BITS}/dev/ffmpeg-3.2.4-win${BITS}-dev.zip" \
 		"ffmpeg-3.2.4-dev-win${BITS}.zip"
 
 	# MyGUI
 	download "MyGUI 3.2.2" \
-		"http://www.lysator.liu.se/~ace/OpenMW/deps/MyGUI-3.2.2-msvc${MSVC_YEAR}-win${BITS}.7z" \
+		"https://www.lysator.liu.se/~ace/OpenMW/deps/MyGUI-3.2.2-msvc${MSVC_YEAR}-win${BITS}.7z" \
 		"MyGUI-3.2.2-msvc${MSVC_YEAR}-win${BITS}.7z"
 
 	# OpenAL
@@ -331,7 +337,7 @@ if [ -z $SKIP_DOWNLOAD ]; then
 
 	# OSG
 	download "OpenSceneGraph 3.4.1-scrawl" \
-		"http://www.lysator.liu.se/~ace/OpenMW/deps/OSG-3.4.1-scrawl-msvc${MSVC_YEAR}-win${BITS}.7z" \
+		"https://www.lysator.liu.se/~ace/OpenMW/deps/OSG-3.4.1-scrawl-msvc${MSVC_YEAR}-win${BITS}.7z" \
 		"OSG-3.4.1-scrawl-msvc${MSVC_YEAR}-win${BITS}.7z"
 
 	# Qt
@@ -343,9 +349,9 @@ if [ -z $SKIP_DOWNLOAD ]; then
 		fi
 
 		download "Qt 5.7.2" \
-			"http://download.qt.io/official_releases/qt/5.7/5.7.0/qt-opensource-windows-x86-msvc${MSVC_YEAR}${QT_SUFFIX}-5.7.0.exe" \
+			"https://download.qt.io/official_releases/qt/5.7/5.7.0/qt-opensource-windows-x86-msvc${MSVC_YEAR}${QT_SUFFIX}-5.7.0.exe" \
 			"qt-5.7.0-msvc${MSVC_YEAR}-win${BITS}.exe" \
-			"http://www.lysator.liu.se/~ace/OpenMW/deps/qt-5-install.qs" \
+			"https://www.lysator.liu.se/~ace/OpenMW/deps/qt-5-install.qs" \
 			"qt-5-install.qs"
 	fi
 
@@ -385,7 +391,7 @@ else
 	if [ $MSVC_VER -eq 12 ]; then
 		printf "Boost 1.58.0 AppVeyor... "
 	else
-		printf "Boost 1.60.0 AppVeyor... "
+		printf "Boost 1.67.0 AppVeyor... "
 	fi
 fi
 {
@@ -408,14 +414,20 @@ fi
 		echo Done.
 	else
 		# Appveyor unstable has all the boost we need already
-		if [ $MSVC_VER -eq 12 ]; then
+		if [ $MSVC_REAL_VER -eq 12 ]; then
 			BOOST_SDK="c:/Libraries/boost_1_58_0"
 		else
-			BOOST_SDK="c:/Libraries/boost_1_60_0"
+			BOOST_SDK="c:/Libraries/boost_1_67_0"
 		fi
+		if [ $MSVC_REAL_VER -eq 15 ]; then
+			LIB_SUFFIX="1"
+		else
+			LIB_SUFFIX="0"
+		fi
+		
 		add_cmake_opts -DBOOST_ROOT="$BOOST_SDK" \
-			-DBOOST_LIBRARYDIR="${BOOST_SDK}/lib${BITS}-msvc-${MSVC_VER}.0"
-		add_cmake_opts -DBoost_COMPILER="-${TOOLSET}"
+			-DBOOST_LIBRARYDIR="${BOOST_SDK}/lib${BITS}-msvc-${MSVC_VER}.${LIB_SUFFIX}"
+		add_cmake_opts -DBoost_COMPILER="-${TOOLSET_REAL}"
 
 		echo Done.
 	fi
@@ -568,7 +580,7 @@ echo
 if [ -z $APPVEYOR ]; then
 	printf "Qt 5.7.0... "
 else
-	printf "Qt 5.7 AppVeyor... "
+	printf "Qt 5.10 AppVeyor... "
 fi
 {
 	if [ $BITS -eq 64 ]; then
@@ -613,13 +625,12 @@ fi
 			SUFFIX=""
 		fi
 
-		add_runtime_dlls "$(pwd)/bin/lib"{EGL,GLESv2}${SUFFIX}.dll \
-			"$(pwd)/bin/Qt5"{Core,Gui,Network,OpenGL,Widgets}${SUFFIX}.dll
+		add_runtime_dlls "$(pwd)/bin/Qt5"{Core,Gui,Network,OpenGL,Widgets}${SUFFIX}.dll
 		add_qt_platform_dlls "$(pwd)/plugins/platforms/qwindows${SUFFIX}.dll"
 
 		echo Done.
 	else
-		QT_SDK="C:/Qt/5.7/msvc${MSVC_YEAR}${SUFFIX}"
+		QT_SDK="C:/Qt/5.10/msvc${MSVC_DISPLAY_YEAR}${SUFFIX}"
 
 		add_cmake_opts -DDESIRED_QT_VERSION=5 \
 			-DQT_QMAKE_EXECUTABLE="${QT_SDK}/bin/qmake.exe" \

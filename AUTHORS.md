@@ -15,6 +15,7 @@ Programmers
     Adam Hogan (aurix)
     Aesylwinn
     aegis
+    AHSauge
     Aleksandar Jovanov
     Alex Haddad (rainChu)
     Alex McKibben
@@ -43,6 +44,7 @@ Programmers
     crussell187
     DanielVukelich
     darkf
+    David Cernat (davidcernat)
     devnexen
     Dieho
     Dmitry Shkurskiy (endorph)
@@ -156,6 +158,8 @@ Programmers
     terrorfisch
     thegriglat
     Thomas Luppi (Digmaster)
+    tri4ng1e
+    unelsson
     Will Herrmann (Thunderforge)
     Tom Mason (wheybags)
     Torben Leif Carrington (TorbenC)
@@ -225,7 +229,7 @@ Artwork
 
     Necrod - OpenMW Logo
     Mickey Lyle (raevol) - Wordpress Theme
-    Tom Koenderink (Okulo), SirHerrbatka, crysthala, Shnatsel - OpenMW Editor Icons
+    Tom Koenderink (Okulo), SirHerrbatka, crysthala, Shnatsel, Lamoot - OpenMW Editor Icons
 
 Inactive Contributors
 ---------------------
