@@ -249,7 +249,7 @@ namespace MWPhysics
                 // Check if we actually found a valid spawn point (use an infinitely thin ray this time).
                 // Required for some broken door destinations in Morrowind.esm, where the spawn point
                 // intersects with other geometry if the actor's base is taken into account
-                btVector3 from = toBullet(position + offset);
+                btVector3 from = toBullet(position);
                 btVector3 to = from - btVector3(0,0,maxHeight);
 
                 btCollisionWorld::ClosestRayResultCallback resultCallback1(from, to);
@@ -308,6 +308,7 @@ namespace MWPhysics
             float swimlevel = waterlevel + halfExtents.z() - (physicActor->getRenderingHalfExtents().z() * 2 * fSwimHeightScale);
 
             ActorTracer tracer;
+
             osg::Vec3f inertia = physicActor->getInertialForce();
             osg::Vec3f velocity;
 
@@ -320,10 +321,11 @@ namespace MWPhysics
             {
                 velocity = (osg::Quat(refpos.rot[2], osg::Vec3f(0, 0, -1))) * movement;
 
-                if (velocity.z() > 0.f && physicActor->getOnGround() && !physicActor->getOnSlope())
+                if ((velocity.z() > 0.f && physicActor->getOnGround() && !physicActor->getOnSlope())
+                 || (velocity.z() > 0.f && velocity.z() + inertia.z() <= -velocity.z() && physicActor->getOnSlope()))
                     inertia = velocity;
-                else if(!physicActor->getOnGround() || physicActor->getOnSlope())
-                    velocity = velocity + physicActor->getInertialForce();
+                else if (!physicActor->getOnGround() || physicActor->getOnSlope())
+                    velocity = velocity + inertia;
             }
 
             // dead actors underwater will float to the surface, if the CharacterController tells us to do so
@@ -683,7 +685,6 @@ namespace MWPhysics
         , mWaterEnabled(false)
         , mParentNode(parentNode)
         , mPhysicsDt(1.f / 60.f)
-        , mIdleUpdateTimer(0)
     {
         mResourceSystem->addResourceManager(mShapeManager.get());
 
@@ -738,18 +739,6 @@ namespace MWPhysics
         delete mCollisionConfiguration;
         delete mDispatcher;
         delete mBroadphase;
-    }
-
-    void PhysicsSystem::updateIdle()
-    {
-        for (ActorMap::iterator it = mActors.begin(); it != mActors.end(); ++it)
-        {
-            osg::Vec3f pos(it->second->getCollisionObjectPosition());
-
-            RayResult result = castRay(pos, pos - osg::Vec3f(0, 0, it->second->getHalfExtents().z() + 2), it->second->getPtr(), std::vector<MWWorld::Ptr>(), CollisionType_World|CollisionType_HeightMap|CollisionType_Door);
-
-            it->second->setIdle(result.mHit);
-        }
     }
 
     void PhysicsSystem::setUnrefQueue(SceneUtil::UnrefQueue *unrefQueue)
@@ -1058,11 +1047,6 @@ namespace MWPhysics
         return physactor && physactor->getOnGround();
     }
 
-    bool PhysicsSystem::isIdle(const MWWorld::Ptr &actor)
-    {
-        Actor* physactor = getActor(actor);
-        return physactor && physactor->getIdle();
-    }
     bool PhysicsSystem::canMoveToWaterSurface(const MWWorld::ConstPtr &actor, const float waterlevel)
     {
         const Actor* physicActor = getActor(actor);
@@ -1355,10 +1339,6 @@ namespace MWPhysics
             cmode = !cmode;
             found->second->enableCollisionMode(cmode);
             found->second->enableCollisionBody(cmode);
-
-            if (cmode)
-                queueObjectMovement(MWMechanics::getPlayer(), osg::Vec3f(0, 0, -0.1f));
-
             return cmode;
         }
 
@@ -1477,13 +1457,6 @@ namespace MWPhysics
     {
         for (std::set<Object*>::iterator it = mAnimatedObjects.begin(); it != mAnimatedObjects.end(); ++it)
             (*it)->animateCollisionShapes(mCollisionWorld);
-
-        mIdleUpdateTimer -= dt;
-        if (mIdleUpdateTimer <= 0.f)
-        {
-            mIdleUpdateTimer = 0.5f;
-            updateIdle();
-        }
 
 #ifndef BT_NO_PROFILE
         CProfileManager::Reset();

@@ -1314,6 +1314,8 @@ namespace MWWorld
         if (pos.z() < terrainHeight)
             pos.z() = terrainHeight;
 
+        pos.z() += 20; // place slightly above. will snap down to ground with code below
+
         if (force || !isFlying(ptr))
         {
             osg::Vec3f traced = mPhysics->traceDown(ptr, pos, 500);
@@ -1338,6 +1340,15 @@ namespace MWWorld
     void World::rotateObject (const Ptr& ptr,float x,float y,float z, bool adjust)
     {
         rotateObjectImp(ptr, osg::Vec3f(x, y, z), adjust);
+    }
+
+    void World::rotateWorldObject (const Ptr& ptr, osg::Quat rotate)
+    {
+        if(ptr.getRefData().getBaseNode() != 0)
+        {
+            mRendering->rotateObject(ptr, rotate);
+            mPhysics->updateRotation(ptr);
+        }
     }
 
     MWWorld::Ptr World::placeObject(const MWWorld::ConstPtr& ptr, MWWorld::CellStore* cell, ESM::Position pos)
@@ -1531,11 +1542,6 @@ namespace MWWorld
             default:
                 return mRendering->toggleRenderMode(mode);
         }
-    }
-
-    osg::ref_ptr<osg::Node> World::getInstance (const std::string& modelName)
-    {
-        return mRendering->getInstance(modelName);
     }
 
     const ESM::Potion *World::createRecord (const ESM::Potion& record)
@@ -2160,11 +2166,6 @@ namespace MWWorld
         return mPhysics->isOnGround(ptr);
     }
 
-    bool World::isIdle(const MWWorld::Ptr &ptr) const
-    {
-        return mPhysics->isIdle(ptr);
-    }
-
     void World::togglePOV()
     {
         mRendering->togglePOV();
@@ -2609,11 +2610,11 @@ namespace MWWorld
                 int y = std::stoi(name.substr(name.find(',')+1));
                 ext = getExterior(x, y)->getCell();
             }
-            catch (std::invalid_argument)
+            catch (const std::invalid_argument&)
             {
                 // This exception can be ignored, as this means that name probably refers to a interior cell instead of comma separated coordinates
             }
-            catch (std::out_of_range)
+            catch (const std::out_of_range&)
             {
                 throw std::runtime_error("Cell coordinates out of range.");
             }
@@ -3332,9 +3333,9 @@ namespace MWWorld
         mRendering->spawnEffect(model, texture, worldPosition, 1.0f, false);
     }
 
-    void World::spawnEffect(const std::string &model, const std::string &textureOverride, const osg::Vec3f &worldPos, float scale, bool isMagicVFX)
+    void World::spawnEffect(const std::string &model, const std::string &textureOverride, const osg::Vec3f &worldPos)
     {
-        mRendering->spawnEffect(model, textureOverride, worldPos, scale, isMagicVFX);
+        mRendering->spawnEffect(model, textureOverride, worldPos);
     }
 
     void World::explodeSpell(const osg::Vec3f& origin, const ESM::EffectList& effects, const Ptr& caster, const Ptr& ignore, ESM::RangeType rangeType,

@@ -275,6 +275,8 @@ protected:
 
     osg::ref_ptr<SceneUtil::LightListCallback> mLightListCallback;
 
+    bool mUseAdditionalSources;
+
     const NodeMap& getNodeMap() const;
 
     /* Sets the appropriate animations on the bone groups based on priority.
@@ -309,12 +311,15 @@ protected:
      */
     void setObjectRoot(const std::string &model, bool forceskeleton, bool baseonly, bool isCreature);
 
+    void loadAllAnimationsInFolder(const std::string &model, const std::string &baseModel);
+
     /** Adds the keyframe controllers in the specified model as a new animation source.
      * @note Later added animation sources have the highest priority when it comes to finding a particular animation.
      * @param model The file to add the keyframes for. Note that the .nif file extension will be replaced with .kf.
      * @param baseModel The filename of the mObjectRoot, only used for error messages.
     */
     void addAnimSource(const std::string &model, const std::string& baseModel);
+    void addSingleAnimSource(const std::string &model, const std::string& baseModel);
 
     /** Adds an additional light to the given node using the specified ESM record. */
     void addExtraLight(osg::ref_ptr<osg::Group> parent, const ESM::Light *light);
@@ -364,7 +369,7 @@ public:
      * @param texture override the texture specified in the model's materials - if empty, do not override
      * @note Will not add an effect twice.
      */
-    void addEffect (const std::string& model, int effectId, bool loop = false, const std::string& bonename = "", const std::string& texture = "", float scale = 1.0f);
+    void addEffect (const std::string& model, int effectId, bool loop = false, const std::string& bonename = "", const std::string& texture = "");
     void removeEffect (int effectId);
     void getLoopingEffects (std::vector<int>& out) const;
 
@@ -446,6 +451,7 @@ public:
 
     void setLoopingEnabled(const std::string &groupname, bool enabled);
 
+    /// This is typically called as part of runAnimation, but may be called manually if needed.
     void updateEffects(float duration);
 
     /// Return a node with the specified name, or NULL if not existing.

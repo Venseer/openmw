@@ -8,8 +8,6 @@
 #include <osg/MatrixTransform>
 #include <osg/BlendFunc>
 #include <osg/Material>
-#include <osg/ComputeBoundsVisitor>
-#include <osg/PositionAttitudeTransform>
 
 #include <osgParticle/ParticleSystem>
 #include <osgParticle/ParticleProcessor>
@@ -32,6 +30,8 @@
 #include <components/sceneutil/lightutil.hpp>
 #include <components/sceneutil/skeleton.hpp>
 #include <components/sceneutil/positionattitudetransform.hpp>
+
+#include <components/settings/settings.hpp>
 
 #include <components/fallback/fallback.hpp>
 
@@ -468,6 +468,8 @@ namespace MWRender
             mAnimationTimePtr[i].reset(new AnimationTime);
 
         mLightListCallback = new SceneUtil::LightListCallback;
+
+        mUseAdditionalSources = Settings::Manager::getBool ("use additional anim sources", "Game");
     }
 
     Animation::~Animation()
@@ -538,6 +540,35 @@ namespace MWRender
         return mKeyframes->mTextKeys;
     }
 
+    void Animation::loadAllAnimationsInFolder(const std::string &model, const std::string &baseModel)
+    {
+        const std::map<std::string, VFS::File*>& index = mResourceSystem->getVFS()->getIndex();
+
+        std::string animationPath = model;
+        if (animationPath.find("meshes") == 0)
+        {
+            animationPath.replace(0, 6, "animations");
+        }
+        animationPath.replace(animationPath.size()-3, 3, "/");
+
+        mResourceSystem->getVFS()->normalizeFilename(animationPath);
+
+        std::map<std::string, VFS::File*>::const_iterator found = index.lower_bound(animationPath);
+        while (found != index.end())
+        {
+            const std::string& name = found->first;
+            if (name.size() >= animationPath.size() && name.substr(0, animationPath.size()) == animationPath)
+            {
+                size_t pos = name.find_last_of('.');
+                if (pos != std::string::npos && name.compare(pos, name.size()-pos, ".kf") == 0)
+                    addSingleAnimSource(name, baseModel);
+            }
+            else
+                break;
+            ++found;
+        }
+    }
+
     void Animation::addAnimSource(const std::string &model, const std::string& baseModel)
     {
         std::string kfname = model;
@@ -548,6 +579,14 @@ namespace MWRender
         else
             return;
 
+        addSingleAnimSource(kfname, baseModel);
+
+        if (mUseAdditionalSources)
+            loadAllAnimationsInFolder(kfname, baseModel);
+    }
+
+    void Animation::addSingleAnimSource(const std::string &kfname, const std::string& baseModel)
+    {
         if(!mResourceSystem->getVFS()->exists(kfname))
             return;
 
@@ -1117,6 +1156,8 @@ namespace MWRender
                 ++stateiter;
         }
 
+        updateEffects(duration);
+
         if (mHeadController)
         {
             const float epsilon = 0.001f;
@@ -1366,7 +1407,7 @@ namespace MWRender
                             useQuadratic, quadraticValue, quadraticRadiusMult, useLinear, linearRadiusMult, linearValue);
     }
 
-    void Animation::addEffect (const std::string& model, int effectId, bool loop, const std::string& bonename, const std::string& texture, float scale)
+    void Animation::addEffect (const std::string& model, int effectId, bool loop, const std::string& bonename, const std::string& texture)
     {
         if (!mObjectRoot.get())
             return;
@@ -1417,13 +1458,7 @@ namespace MWRender
 
         overrideFirstRootTexture(texture, mResourceSystem, node);
 
-        osg::Vec3f scale3f (scale, scale, scale);
-
-        osg::ref_ptr<osg::PositionAttitudeTransform> trans = new osg::PositionAttitudeTransform;
-        trans->setScale(scale3f);
-        trans->addChild(node);
-        parentNode->removeChild(node);
-        parentNode->addChild(trans);
+        // TODO: in vanilla morrowind the effect is scaled based on the host object's bounding box.
 
         mEffects.push_back(params);
     }

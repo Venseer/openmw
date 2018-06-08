@@ -54,7 +54,7 @@ endif()
 message(STATUS "Configuring OpenMW...")
 
 set(OPENMW_VERSION_MAJOR 0)
-set(OPENMW_VERSION_MINOR 43)
+set(OPENMW_VERSION_MINOR 44)
 set(OPENMW_VERSION_RELEASE 0)
 
 set(OPENMW_VERSION_COMMITHASH "")
@@ -705,8 +705,7 @@ if (WIN32)
     endif()
 
     if (BUILD_OPENMW)
-        # Very specific issue this, only needed on 32-bit VS2015 during unity builds.
-        if (MSVC_VERSION GREATER 1800 AND CMAKE_SIZEOF_VOID_P EQUAL 4 AND OPENMW_UNITY_BUILD)
+        if (OPENMW_UNITY_BUILD)
             set_target_properties(openmw PROPERTIES COMPILE_FLAGS "${WARNINGS} ${MT_BUILD} /bigobj")
         else()
             set_target_properties(openmw PROPERTIES COMPILE_FLAGS "${WARNINGS} ${MT_BUILD}")
