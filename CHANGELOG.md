@@ -4,6 +4,7 @@
     Bug #1990: Sunrise/sunset not set correct
     Bug #2222: Fatigue's effect on selling price is backwards
     Bug #2326: After a bound item expires the last equipped item of that type is not automatically re-equipped
+    Bug #2455: Creatures attacks degrade armor
     Bug #2562: Forcing AI to activate a teleport door sometimes causes a crash
     Bug #2772: Non-existing class or faction freezes the game
     Bug #2835: Player able to slowly move when overencumbered
@@ -51,6 +52,7 @@
     Bug #4474: No fallback when getVampireHead fails
     Bug #4475: Scripted animations should not cause movement
     Bug #4479: "Game" category on Advanced page is getting too long
+    Bug #4480: Segfalt in QuickKeysMenu when item no longer in inventory
     Feature #3276: Editor: Search- Show number of (remaining) search results and indicate a search without any results
     Feature #4222: 360° screenshots
     Feature #4256: Implement ToggleBorders (TB) console command
