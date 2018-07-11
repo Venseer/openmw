@@ -370,6 +370,10 @@ void CharacterController::refreshJumpAnims(const WeaponInfo* weap, JumpingState 
                 {
                     jumpmask = MWRender::Animation::BlendMask_LowerBody;
                     jumpAnimName = "jump";
+
+                    // For crossbow animations use 1h ones as fallback
+                    if (mWeaponType == WeapType_Crossbow)
+                        jumpAnimName += "1h";
                 }
             }
         }
@@ -418,11 +422,18 @@ void CharacterController::refreshMovementAnims(const WeaponInfo* weap, Character
             movementAnimName = movestate->groupname;
             if(weap != sWeaponTypeListEnd && movementAnimName.find("swim") == std::string::npos)
             {
-                movementAnimName += weap->shortgroup;
+                if (mWeaponType == WeapType_Spell && (mMovementState == CharState_TurnLeft || mMovementState == CharState_TurnRight)) // Spellcasting stance turning is a special case
+                    movementAnimName = weap->shortgroup + movementAnimName;
+                else
+                    movementAnimName += weap->shortgroup;
                 if(!mAnimation->hasAnimation(movementAnimName))
                 {
                     movemask = MWRender::Animation::BlendMask_LowerBody;
                     movementAnimName = movestate->groupname;
+
+                    // For crossbow animations use 1h ones as fallback
+                    if (mWeaponType == WeapType_Crossbow)
+                        movementAnimName += "1h";
                 }
             }
 
@@ -459,9 +470,11 @@ void CharacterController::refreshMovementAnims(const WeaponInfo* weap, Character
             }
         }
 
-        /* If we're playing the same animation, restart from the loop start instead of the
-         * beginning. */
-        int mode = ((movementAnimName == mCurrentMovement) ? 2 : 1);
+        // If we're playing the same animation, start it from the point it ended
+        bool sameAnim = (movementAnimName == mCurrentMovement);
+        float startPoint = 0.f;
+        if (sameAnim)
+            mAnimation->getInfo(mCurrentMovement, &startPoint);
 
         mMovementAnimationControlled = true;
 
@@ -510,7 +523,7 @@ void CharacterController::refreshMovementAnims(const WeaponInfo* weap, Character
             }
 
             mAnimation->play(mCurrentMovement, Priority_Movement, movemask, false,
-                             1.f, ((mode!=2)?"start":"loop start"), "stop", 0.0f, ~0ul, true);
+                             1.f, (!sameAnim ? "start" : "loop start"), "stop", startPoint, ~0ul, true);
         }
     }
 }
@@ -660,16 +673,19 @@ MWWorld::ContainerStoreIterator getActiveWeapon(CreatureStats &stats, MWWorld::I
 
 void CharacterController::playDeath(float startpoint, CharacterState death)
 {
+    // Make sure the character was swimming upon death for forward-compatibility
+    const bool wasSwimming = MWBase::Environment::get().getWorld()->isSwimming(mPtr);
+
     switch (death)
     {
     case CharState_SwimDeath:
         mCurrentDeath = "swimdeath";
         break;
     case CharState_SwimDeathKnockDown:
-        mCurrentDeath = "swimdeathknockdown";
+        mCurrentDeath = (wasSwimming ? "swimdeathknockdown" : "deathknockdown");
         break;
     case CharState_SwimDeathKnockOut:
-        mCurrentDeath = "swimdeathknockout";
+        mCurrentDeath = (wasSwimming ? "swimdeathknockout" : "deathknockout");
         break;
     case CharState_DeathKnockDown:
         mCurrentDeath = "deathknockdown";
@@ -1622,16 +1638,18 @@ bool CharacterController::updateWeaponState()
                 break;
         }
 
+        // Note: apply reload animations only for upper body since blending with movement animations can give weird result.
+        // Especially noticable with crossbow reload animation.
         if(!start.empty())
         {
             mAnimation->disable(mCurrentWeapon);
             if (mUpperBodyState == UpperCharState_FollowStartToFollowStop)
                 mAnimation->play(mCurrentWeapon, priorityWeapon,
-                                 MWRender::Animation::BlendMask_All, true,
+                                 MWRender::Animation::BlendMask_UpperBody, true,
                                  weapSpeed, start, stop, 0.0f, 0);
             else
                 mAnimation->play(mCurrentWeapon, priorityWeapon,
-                                 MWRender::Animation::BlendMask_All, false,
+                                 MWRender::Animation::BlendMask_UpperBody, false,
                                  weapSpeed, start, stop, 0.0f, 0);
         }
     }
