@@ -3,7 +3,6 @@
 
 #include <stdexcept>
 #include <algorithm>
-#include <sstream>
 
 #include "intsetting.hpp"
 #include "doublesetting.hpp"
@@ -305,6 +304,7 @@ void CSMPrefs::State::declare()
     declareShortcut ("document-assets-videos", "Open Video Asset List", QKeySequence());
     declareShortcut ("document-debug-run", "Run Debug", QKeySequence());
     declareShortcut ("document-debug-shutdown", "Stop Debug", QKeySequence());
+    declareShortcut ("document-debug-profiles", "Debug Profiles", QKeySequence());
     declareShortcut ("document-debug-runlog", "Open Run Log", QKeySequence());
 
     declareSubcategory ("Table");
@@ -316,8 +316,8 @@ void CSMPrefs::State::declare()
     declareShortcut ("table-remove", "Remove Row/Record", QKeySequence(Qt::Key_Delete));
     declareShortcut ("table-moveup", "Move Record Up", QKeySequence());
     declareShortcut ("table-movedown", "Move Record Down", QKeySequence());
-    declareShortcut ("table-view", "View Record", QKeySequence());
-    declareShortcut ("table-preview", "Preview Record", QKeySequence());
+    declareShortcut ("table-view", "View Record", QKeySequence(Qt::ShiftModifier | Qt::Key_C));
+    declareShortcut ("table-preview", "Preview Record", QKeySequence(Qt::ShiftModifier | Qt::Key_V));
     declareShortcut ("table-extendeddelete", "Extended Record Deletion", QKeySequence());
     declareShortcut ("table-extendedrevert", "Extended Record Revertion", QKeySequence());
 
@@ -392,9 +392,7 @@ CSMPrefs::IntSetting& CSMPrefs::State::declareInt (const std::string& key,
     if (mCurrentCategory==mCategories.end())
         throw std::logic_error ("no category for setting");
 
-    std::ostringstream stream;
-    stream << default_;
-    setDefault (key, stream.str());
+    setDefault(key, std::to_string(default_));
 
     default_ = mSettings.getInt (key, mCurrentCategory->second.getKey());
 
@@ -413,9 +411,7 @@ CSMPrefs::DoubleSetting& CSMPrefs::State::declareDouble (const std::string& key,
     if (mCurrentCategory==mCategories.end())
         throw std::logic_error ("no category for setting");
 
-    std::ostringstream stream;
-    stream << default_;
-    setDefault (key, stream.str());
+    setDefault(key, std::to_string(default_));
 
     default_ = mSettings.getFloat (key, mCurrentCategory->second.getKey());
 

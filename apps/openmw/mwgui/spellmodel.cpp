@@ -1,6 +1,6 @@
 #include "spellmodel.hpp"
 
-#include <iostream>
+#include <components/debug/debuglog.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
@@ -71,7 +71,7 @@ namespace MWGui
             {
                 newSpell.mType = Spell::Type_Spell;
                 std::string cost = std::to_string(spell->mData.mCost);
-                std::string chance = std::to_string(int(MWMechanics::getSpellSuccessChance(spell, mActor, NULL, true, true)));
+                std::string chance = std::to_string(int(MWMechanics::getSpellSuccessChance(spell, mActor, nullptr, true, true)));
                 newSpell.mCostColumn = cost + "/" + chance;
             }
             else
@@ -94,7 +94,7 @@ namespace MWGui
             const ESM::Enchantment* enchant = esmStore.get<ESM::Enchantment>().search(enchantId);
             if (!enchant)
             {
-                std::cerr << "Warning: Can't find enchantment '" << enchantId << "' on item " << item.getCellRef().getRefId() << std::endl;
+                Log(Debug::Warning) << "Warning: Can't find enchantment '" << enchantId << "' on item " << item.getCellRef().getRefId();
                 continue;
             }
 

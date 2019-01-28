@@ -107,8 +107,7 @@ namespace MWScript
             virtual void execute (Interpreter::Runtime& runtime)
             {
                 MWBase::World* world = MWBase::Environment::get().getWorld();
-                MWWorld::Ptr player = world->getPlayerPtr();
-                runtime.push (!world->isOnGround(player) && !world->isFlying(player));
+                runtime.push (world->getPlayer().getJumping());
             }
         };
 
@@ -432,6 +431,12 @@ namespace MWScript
                     std::string effect = runtime.getStringLiteral(runtime[0].mInteger);
                     runtime.pop();
 
+                    if (!ptr.getClass().isActor())
+                    {
+                        runtime.push(0);
+                        return;
+                    }
+
                     char *end;
                     long key = strtol(effect.c_str(), &end, 10);
                     if(key < 0 || key > 32767 || *end != '\0')
@@ -659,6 +664,12 @@ namespace MWScript
                     MWWorld::Ptr ptr = R()(runtime);
                     std::string id = runtime.getStringLiteral(runtime[0].mInteger);
                     runtime.pop();
+
+                    if (!ptr.getClass().isActor())
+                    {
+                        runtime.push(0);
+                        return;
+                    }
 
                     const MWMechanics::CreatureStats& stats = ptr.getClass().getCreatureStats(ptr);
                     runtime.push(stats.getActiveSpells().isSpellActive(id) || stats.getSpells().isSpellActive(id));
@@ -1064,7 +1075,13 @@ namespace MWScript
                 runtime.pop();
 
                 const ESM::Spell* spell = MWBase::Environment::get().getWorld()->getStore().get<ESM::Spell>().find (spellId);
-                if (spell && spell->mData.mType != ESM::Spell::ST_Spell && spell->mData.mType != ESM::Spell::ST_Power)
+                if (!spell)
+                {
+                    runtime.getContext().report("spellcasting failed: can not find spell \""+spellId+"\"");
+                    return;
+                }
+
+                if (spell->mData.mType != ESM::Spell::ST_Spell && spell->mData.mType != ESM::Spell::ST_Power)
                 {
                     runtime.getContext().report("spellcasting failed: you can cast only spells and powers.");
                     return;
@@ -1082,6 +1099,7 @@ namespace MWScript
                 MWWorld::Ptr target = MWBase::Environment::get().getWorld()->getPtr (targetId, false);
 
                 MWMechanics::CastSpell cast(ptr, target, false, true);
+                cast.playSpellCastingEffects(spell->mId);
                 cast.mHitPosition = target.getRefData().getPosition().asVec3();
                 cast.mAlwaysSucceed = true;
                 cast.cast(spell);
@@ -1155,8 +1173,7 @@ namespace MWScript
 
                 virtual void execute (Interpreter::Runtime &runtime)
                 {
-                    /// \todo implement traveling check
-                    runtime.push (0);
+                    runtime.push (MWBase::Environment::get().getWorld()->isPlayerTraveling());
                 }
         };
 
@@ -1312,6 +1329,53 @@ namespace MWScript
             }
         };
 
+        class OpToggleNavMesh : public Interpreter::Opcode0
+        {
+            public:
+
+                virtual void execute (Interpreter::Runtime& runtime)
+                {
+                    bool enabled =
+                        MWBase::Environment::get().getWorld()->toggleRenderMode (MWRender::Render_NavMesh);
+
+                    runtime.getContext().report (enabled ?
+                        "Navigation Mesh Rendering -> On" : "Navigation Mesh Rendering -> Off");
+                }
+        };
+
+        class OpToggleActorsPaths : public Interpreter::Opcode0
+        {
+            public:
+
+                virtual void execute (Interpreter::Runtime& runtime)
+                {
+                    bool enabled =
+                        MWBase::Environment::get().getWorld()->toggleRenderMode (MWRender::Render_ActorsPaths);
+
+                    runtime.getContext().report (enabled ?
+                        "Agents Paths Rendering -> On" : "Agents Paths Rendering -> Off");
+                }
+        };
+
+        class OpSetNavMeshNumberToRender : public Interpreter::Opcode0
+        {
+            public:
+
+                virtual void execute (Interpreter::Runtime& runtime)
+                {
+                    const auto navMeshNumber = runtime[0].mInteger;
+                    runtime.pop();
+
+                    if (navMeshNumber < 0)
+                    {
+                        runtime.getContext().report("Invalid navmesh number: use not less than zero values");
+                        return;
+                    }
+
+                    MWBase::Environment::get().getWorld()->setNavMeshNumberToRender(static_cast<std::size_t>(navMeshNumber));
+                }
+        };
+
         void installOpcodes (Interpreter::Interpreter& interpreter)
         {
             interpreter.installSegment5 (Compiler::Misc::opcodeXBox, new OpXBox);
@@ -1412,6 +1476,9 @@ namespace MWScript
             interpreter.installSegment3 (Compiler::Misc::opcodeShowSceneGraph, new OpShowSceneGraph<ImplicitRef>);
             interpreter.installSegment3 (Compiler::Misc::opcodeShowSceneGraphExplicit, new OpShowSceneGraph<ExplicitRef>);
             interpreter.installSegment5 (Compiler::Misc::opcodeToggleBorders, new OpToggleBorders);
+            interpreter.installSegment5 (Compiler::Misc::opcodeToggleNavMesh, new OpToggleNavMesh);
+            interpreter.installSegment5 (Compiler::Misc::opcodeToggleActorsPaths, new OpToggleActorsPaths);
+            interpreter.installSegment5 (Compiler::Misc::opcodeSetNavMeshNumberToRender, new OpSetNavMeshNumberToRender);
         }
     }
 }

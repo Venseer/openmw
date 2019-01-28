@@ -22,6 +22,8 @@
 
 #include <osgViewer/Viewer>
 
+#include <components/debug/debuglog.hpp>
+
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/imagemanager.hpp>
 #include <components/resource/scenemanager.hpp>
@@ -44,9 +46,12 @@
 #include <components/esm/loadcell.hpp>
 #include <components/fallback/fallback.hpp>
 
+#include <components/detournavigator/navigator.hpp>
+
 #include <boost/algorithm/string.hpp>
 
 #include "../mwworld/cellstore.hpp"
+#include "../mwworld/class.hpp"
 #include "../mwgui/loadingscreen.hpp"
 #include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
@@ -60,6 +65,8 @@
 #include "water.hpp"
 #include "terrainstorage.hpp"
 #include "util.hpp"
+#include "navmesh.hpp"
+#include "actorspaths.hpp"
 
 namespace
 {
@@ -186,13 +193,16 @@ namespace MWRender
         Resource::ResourceSystem* mResourceSystem;
     };
 
-    RenderingManager::RenderingManager(osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode, Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
-                                       const Fallback::Map* fallback, const std::string& resourcePath)
+    RenderingManager::RenderingManager(osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode,
+                                       Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
+                                       const Fallback::Map* fallback, const std::string& resourcePath,
+                                       DetourNavigator::Navigator& navigator)
         : mViewer(viewer)
         , mRootNode(rootNode)
         , mResourceSystem(resourceSystem)
         , mWorkQueue(workQueue)
         , mUnrefQueue(new SceneUtil::UnrefQueue)
+        , mNavigator(navigator)
         , mLandFogStart(0.f)
         , mLandFogEnd(std::numeric_limits<float>::max())
         , mUnderwaterFogStart(0.f)
@@ -203,6 +213,7 @@ namespace MWRender
         , mNightEyeFactor(0.f)
         , mDistantFog(false)
         , mDistantTerrain(false)
+        , mFieldOfViewOverridden(false)
         , mFieldOfViewOverride(0.f)
         , mBorders(false)
     {
@@ -224,11 +235,13 @@ namespace MWRender
 
         mRootNode->addChild(mSceneRoot);
 
+        mNavMesh.reset(new NavMesh(mRootNode, Settings::Manager::getBool("enable nav mesh render", "Navigator")));
+        mActorsPaths.reset(new ActorsPaths(mRootNode, Settings::Manager::getBool("enable agents paths render", "Navigator")));
         mPathgrid.reset(new Pathgrid(mRootNode));
 
         mObjects.reset(new Objects(mResourceSystem, sceneRoot, mUnrefQueue.get()));
 
-        if (getenv("OPENMW_DONT_PRECOMPILE") == NULL)
+        if (getenv("OPENMW_DONT_PRECOMPILE") == nullptr)
         {
             mViewer->setIncrementalCompileOperation(new osgUtil::IncrementalCompileOperation);
             mViewer->getIncrementalCompileOperation()->setTargetFrameRate(Settings::Manager::getFloat("target framerate", "Cells"));
@@ -332,7 +345,7 @@ namespace MWRender
     RenderingManager::~RenderingManager()
     {
         // let background loading thread finish before we delete anything else
-        mWorkQueue = NULL;
+        mWorkQueue = nullptr;
     }
 
     MWRender::Objects& RenderingManager::getObjects()
@@ -461,6 +474,7 @@ namespace MWRender
     void RenderingManager::removeCell(const MWWorld::CellStore *store)
     {
         mPathgrid->removeCell(store);
+        mActorsPaths->removeCell(store);
         mObjects->removeCell(store);
 
         if (store->getCell()->isExterior())
@@ -478,7 +492,7 @@ namespace MWRender
     {
         mSky->setEnabled(enabled);
     }
-    
+
     bool RenderingManager::toggleBorders()
     {
         mBorders = !mBorders;
@@ -511,6 +525,14 @@ namespace MWRender
                 mask &= ~Mask_Scene;
             mViewer->getCamera()->setCullMask(mask);
             return enabled;
+        }
+        else if (mode == Render_NavMesh)
+        {
+            return mNavMesh->toggle();
+        }
+        else if (mode == Render_ActorsPaths)
+        {
+            return mActorsPaths->toggle();
         }
         return false;
     }
@@ -553,8 +575,8 @@ namespace MWRender
                 mLandFogStart = mViewDistance * (1 - fogDepth);
                 mLandFogEnd = mViewDistance;
             }
-            mUnderwaterFogStart = mViewDistance * (1 - underwaterFog);
-            mUnderwaterFogEnd = mViewDistance;
+            mUnderwaterFogStart = std::min(mViewDistance, 6666.f) * (1 - underwaterFog);
+            mUnderwaterFogEnd = std::min(mViewDistance, 6666.f);
         }
         mFogColor = color;
     }
@@ -577,6 +599,8 @@ namespace MWRender
             mWater->update(dt);
         }
 
+        updateNavMesh();
+
         mCamera->update(dt, paused);
 
         osg::Vec3f focal, cameraPos;
@@ -584,8 +608,6 @@ namespace MWRender
         mCurrentCameraPos = cameraPos;
         if (mWater->isUnderwater(cameraPos))
         {
-            float viewDistance = mViewDistance;
-            viewDistance = std::min(viewDistance, 6666.f);
             setFogColor(mUnderwaterColor * mUnderwaterWeight + mFogColor * (1.f-mUnderwaterWeight));
             mStateUpdater->setFogStart(mUnderwaterFogStart);
             mStateUpdater->setFogEnd(mUnderwaterFogEnd);
@@ -640,6 +662,7 @@ namespace MWRender
 
     void RenderingManager::removeObject(const MWWorld::Ptr &ptr)
     {
+        mActorsPaths->remove(ptr);
         mObjects->removeObject(ptr);
         mWater->removeEmitter(ptr);
     }
@@ -691,9 +714,6 @@ namespace MWRender
         int screenshotW = mViewer->getCamera()->getViewport()->width();
         int screenshotH = mViewer->getCamera()->getViewport()->height();
         int screenshotMapping = 0;
-        int cubeSize = screenshotMapping == 2 ?
-            screenshotW:         // planet mapping needs higher resolution
-            screenshotW / 2;    
 
         std::vector<std::string> settingArgs;
         boost::algorithm::split(settingArgs,settingStr,boost::is_any_of(" "));
@@ -713,11 +733,14 @@ namespace MWRender
 
             if (!found)
             {
-                std::cerr << "Wrong screenshot type: " << settingArgs[0] << "." << std::endl;
+                Log(Debug::Warning) << "Wrong screenshot type: " << settingArgs[0] << ".";
                 return false;
             }
         }
-    
+
+        // planet mapping needs higher resolution
+        int cubeSize = screenshotMapping == 2 ? screenshotW : screenshotW / 2;
+
         if (settingArgs.size() > 1)
             screenshotW = std::min(10000,std::atoi(settingArgs[1].c_str()));
 
@@ -729,7 +752,7 @@ namespace MWRender
 
         if (mCamera->isVanityOrPreviewModeEnabled())
         {
-            std::cerr << "Spherical screenshots are not allowed in preview mode." << std::endl;
+            Log(Debug::Warning) << "Spherical screenshots are not allowed in preview mode.";
             return false;
         }
 
@@ -747,8 +770,8 @@ namespace MWRender
 
         osg::Vec3 directions[6] = {
             rawCubemap ? osg::Vec3(1,0,0) : osg::Vec3(0,0,1),
-            osg::Vec3(0,0,-1),  
-            osg::Vec3(-1,0,0),   
+            osg::Vec3(0,0,-1),
+            osg::Vec3(-1,0,0),
             rawCubemap ? osg::Vec3(0,0,1) : osg::Vec3(1,0,0),
             osg::Vec3(0,1,0),
             osg::Vec3(0,-1,0)};
@@ -787,7 +810,7 @@ namespace MWRender
         mFieldOfView = fovBackup;
 
         if (rawCubemap)    // for raw cubemap don't run on GPU, just merge the images
-        {    
+        {
             image->allocateImage(cubeSize * 6,cubeSize,images[0]->r(),images[0]->getPixelFormat(),images[0]->getDataType());
 
             for (int i = 0; i < 6; ++i)
@@ -795,7 +818,7 @@ namespace MWRender
 
             return true;
         }
-        
+
         // run on GPU now:
 
         osg::ref_ptr<osg::TextureCubeMap> cubeTexture (new osg::TextureCubeMap);
@@ -803,7 +826,7 @@ namespace MWRender
 
         cubeTexture->setFilter(osg::Texture::MIN_FILTER,osg::Texture::NEAREST);
         cubeTexture->setFilter(osg::Texture::MAG_FILTER,osg::Texture::NEAREST);
-        
+
         cubeTexture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
         cubeTexture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
 
@@ -828,18 +851,13 @@ namespace MWRender
         stateset->addUniform(new osg::Uniform("cubeMap",0));
         stateset->addUniform(new osg::Uniform("mapping",screenshotMapping));
         stateset->setTextureAttributeAndModes(0,cubeTexture,osg::StateAttribute::ON);
-            
+
         quad->setStateSet(stateset);
-        quad->setUpdateCallback(NULL);
+        quad->setUpdateCallback(nullptr);
 
         screenshotCamera->addChild(quad);
 
-        mRootNode->addChild(screenshotCamera);
-
         renderCameraToImage(screenshotCamera,image,screenshotW,screenshotH);
-
-        screenshotCamera->removeChildren(0,screenshotCamera->getNumChildren());
-        mRootNode->removeChild(screenshotCamera);
 
         return true;
     }
@@ -865,6 +883,8 @@ namespace MWRender
         image->setDataType(GL_UNSIGNED_BYTE);
         image->setPixelFormat(texture->getInternalFormat());
 
+        mRootNode->addChild(camera);
+
         // The draw needs to complete before we can copy back our image.
         osg::ref_ptr<NotifyDrawCompletedCallback> callback (new NotifyDrawCompletedCallback);
         camera->setFinalDrawCallback(callback);
@@ -880,31 +900,16 @@ namespace MWRender
 
         // now that we've "used up" the current frame, get a fresh framenumber for the next frame() following after the screenshot is completed
         mViewer->advance(mViewer->getFrameStamp()->getSimulationTime());
+
+        camera->removeChildren(0, camera->getNumChildren());
+        mRootNode->removeChild(camera);
     }
 
     void RenderingManager::screenshot(osg::Image *image, int w, int h, osg::Matrixd cameraTransform)
     {
         osg::ref_ptr<osg::Camera> rttCamera (new osg::Camera);
-        rttCamera->setNodeMask(Mask_RenderToTexture);
-        rttCamera->attach(osg::Camera::COLOR_BUFFER, image);
-        rttCamera->setRenderOrder(osg::Camera::PRE_RENDER);
-        rttCamera->setReferenceFrame(osg::Camera::ABSOLUTE_RF);
-        rttCamera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT, osg::Camera::PIXEL_BUFFER_RTT);
         rttCamera->setProjectionMatrixAsPerspective(mFieldOfView, w/float(h), mNearClip, mViewDistance);
         rttCamera->setViewMatrix(mViewer->getCamera()->getViewMatrix() * cameraTransform);
-
-        rttCamera->setViewport(0, 0, w, h);
-
-        osg::ref_ptr<osg::Texture2D> texture (new osg::Texture2D);
-        texture->setInternalFormat(GL_RGB);
-        texture->setTextureSize(w, h);
-        texture->setResizeNonPowerOfTwoHint(false);
-        texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
-        texture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
-        rttCamera->attach(osg::Camera::COLOR_BUFFER, texture);
-
-        image->setDataType(GL_UNSIGNED_BYTE);
-        image->setPixelFormat(texture->getInternalFormat());
 
         rttCamera->setUpdateCallback(new NoTraverseCallback);
         rttCamera->addChild(mSceneRoot);
@@ -914,14 +919,9 @@ namespace MWRender
 
         rttCamera->setCullMask(mViewer->getCamera()->getCullMask() & (~Mask_GUI));
 
-        mRootNode->addChild(rttCamera);
-
         rttCamera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         renderCameraToImage(rttCamera.get(),image,w,h);
-
-        rttCamera->removeChildren(0, rttCamera->getNumChildren());
-        mRootNode->removeChild(rttCamera);
     }
 
     osg::Vec4f RenderingManager::getScreenBounds(const MWWorld::Ptr& ptr)
@@ -973,7 +973,7 @@ namespace MWRender
             result.mHitNormalWorld = intersection.getWorldIntersectNormal();
             result.mRatio = intersection.ratio;
 
-            PtrHolder* ptrHolder = NULL;
+            PtrHolder* ptrHolder = nullptr;
             for (osg::NodePath::const_iterator it = intersection.nodePath.begin(); it != intersection.nodePath.end(); ++it)
             {
                 osg::UserDataContainer* userDataContainer = (*it)->getUserDataContainer();
@@ -1046,6 +1046,7 @@ namespace MWRender
     void RenderingManager::updatePtr(const MWWorld::Ptr &old, const MWWorld::Ptr &updated)
     {
         mObjects->updatePtr(old, updated);
+        mActorsPaths->updatePtr(old, updated);
     }
 
     void RenderingManager::spawnEffect(const std::string &model, const std::string &texture, const osg::Vec3f &worldPosition, float scale, bool isMagicVFX)
@@ -1111,7 +1112,7 @@ namespace MWRender
 
     void RenderingManager::rebuildPtr(const MWWorld::Ptr &ptr)
     {
-        NpcAnimation *anim = NULL;
+        NpcAnimation *anim = nullptr;
         if(ptr == mPlayerAnimation->getPtr())
             anim = mPlayerAnimation.get();
         else
@@ -1320,6 +1321,29 @@ namespace MWRender
         }
     }
 
+    osg::Vec3f RenderingManager::getHalfExtents(const MWWorld::ConstPtr& object) const
+    {
+        osg::Vec3f halfExtents(0, 0, 0);
+        std::string modelName = object.getClass().getModel(object);
+        if (modelName.empty())
+            return halfExtents;
+
+        osg::ref_ptr<const osg::Node> node = mResourceSystem->getSceneManager()->getTemplate(modelName);
+        osg::ComputeBoundsVisitor computeBoundsVisitor;
+        computeBoundsVisitor.setTraversalMask(~(MWRender::Mask_ParticleSystem|MWRender::Mask_Effect));
+        const_cast<osg::Node*>(node.get())->accept(computeBoundsVisitor);
+        osg::BoundingBox bounds = computeBoundsVisitor.getBoundingBox();
+
+        if (bounds.valid())
+        {
+            halfExtents[0] = std::abs(bounds.xMax() - bounds.xMin()) / 2.f;
+            halfExtents[1] = std::abs(bounds.yMax() - bounds.yMin()) / 2.f;
+            halfExtents[2] = std::abs(bounds.zMax() - bounds.zMin()) / 2.f;
+        }
+
+        return halfExtents;
+    }
+
     void RenderingManager::resetFieldOfView()
     {
         if (mFieldOfViewOverridden == true)
@@ -1343,5 +1367,48 @@ namespace MWRender
         return mTerrainStorage->getLandManager();
     }
 
+    void RenderingManager::updateActorPath(const MWWorld::ConstPtr& actor, const std::deque<osg::Vec3f>& path,
+            const osg::Vec3f& halfExtents, const osg::Vec3f& start, const osg::Vec3f& end) const
+    {
+        mActorsPaths->update(actor, path, halfExtents, start, end, mNavigator.getSettings());
+    }
 
+    void RenderingManager::removeActorPath(const MWWorld::ConstPtr& actor) const
+    {
+        mActorsPaths->remove(actor);
+    }
+
+    void RenderingManager::setNavMeshNumber(const std::size_t value)
+    {
+        mNavMeshNumber = value;
+    }
+
+    void RenderingManager::updateNavMesh()
+    {
+        if (!mNavMesh->isEnabled())
+            return;
+
+        const auto navMeshes = mNavigator.getNavMeshes();
+
+        auto it = navMeshes.begin();
+        for (std::size_t i = 0; it != navMeshes.end() && i < mNavMeshNumber; ++i)
+            ++it;
+        if (it == navMeshes.end())
+        {
+            mNavMesh->reset();
+        }
+        else
+        {
+            try
+            {
+                const auto locked = it->second.lockConst();
+                mNavMesh->update(locked->getValue(), mNavMeshNumber, locked->getGeneration(),
+                                 locked->getNavMeshRevision(), mNavigator.getSettings());
+            }
+            catch (const std::exception& e)
+            {
+                Log(Debug::Error) << "NavMesh render update exception: " << e.what();
+            }
+        }
+    }
 }

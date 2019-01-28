@@ -10,6 +10,7 @@
 
 #include <SDL_version.h>
 
+#include <components/debug/debuglog.hpp>
 #include <components/sdlutil/sdlinputwrapper.hpp>
 #include <components/sdlutil/sdlvideowrapper.hpp>
 #include <components/esm/esmwriter.hpp>
@@ -45,12 +46,13 @@ namespace MWInput
         , mScreenCaptureHandler(screenCaptureHandler)
         , mScreenCaptureOperation(screenCaptureOperation)
         , mJoystickLastUsed(false)
-        , mPlayer(NULL)
-        , mInputManager(NULL)
-        , mVideoWrapper(NULL)
+        , mPlayer(nullptr)
+        , mInputManager(nullptr)
+        , mVideoWrapper(nullptr)
         , mUserFile(userFile)
         , mDragDrop(false)
         , mGrabCursor (Settings::Manager::getBool("grab cursor", "Input"))
+        , mInvertX (Settings::Manager::getBool("invert x axis", "Input"))
         , mInvertY (Settings::Manager::getBool("invert y axis", "Input"))
         , mControlsDisabled(false)
         , mCameraSensitivity (Settings::Manager::getFloat("camera sensitivity", "Input"))
@@ -83,7 +85,7 @@ namespace MWInput
                                         Settings::Manager::getFloat("contrast", "Video"));
 
         std::string file = userFileExists ? userFile : "";
-        mInputBinder = new ICS::InputControlSystem(file, true, this, NULL, A_Last);
+        mInputBinder = new ICS::InputControlSystem(file, true, this, nullptr, A_Last);
 
         loadKeyDefaults();
         loadControllerDefaults();
@@ -120,11 +122,11 @@ namespace MWInput
                 SDL_ControllerDeviceEvent evt;
                 evt.which = i;
                 controllerAdded(mFakeDeviceID, evt);
-                std::cout << "Detected game controller: " << SDL_GameControllerNameForIndex(i) << std::endl;
+                Log(Debug::Info) << "Detected game controller: " << SDL_GameControllerNameForIndex(i);
             }
             else
             {
-                std::cout << "Detected unusable controller: " << SDL_JoystickNameForIndex(i) << std::endl;
+                Log(Debug::Info) << "Detected unusable controller: " << SDL_JoystickNameForIndex(i);
             }
         }
 
@@ -213,7 +215,7 @@ namespace MWInput
             break;
         }
 
-        MWBase::Environment::get().getWindowManager()->injectKeyPress(key, 0);
+        MWBase::Environment::get().getWindowManager()->injectKeyPress(key, 0, false);
     }
 
     void InputManager::channelChanged(ICS::Channel* channel, float currentValue, float previousValue)
@@ -466,7 +468,7 @@ namespace MWInput
                 float rot[3];
                 rot[0] = yAxis * (dt * 100.0f) * 10.0f * mCameraSensitivity * (1.0f/256.f) * (mInvertY ? -1 : 1) * mCameraYMultiplier;
                 rot[1] = 0.0f;
-                rot[2] = xAxis * (dt * 100.0f) * 10.0f * mCameraSensitivity * (1.0f/256.f);
+                rot[2] = xAxis * (dt * 100.0f) * 10.0f * mCameraSensitivity * (1.0f/256.f) * (mInvertX ? -1 : 1);
 
                 // Only actually turn player when we're not in vanity mode
                 if(!MWBase::Environment::get().getWorld()->vanityRotateCamera(rot))
@@ -645,6 +647,9 @@ namespace MWInput
         for (Settings::CategorySettingVector::const_iterator it = changed.begin();
         it != changed.end(); ++it)
         {
+            if (it->first == "Input" && it->second == "invert x axis")
+                mInvertX = Settings::Manager::getBool("invert x axis", "Input");
+
             if (it->first == "Input" && it->second == "invert y axis")
                 mInvertY = Settings::Manager::getBool("invert y axis", "Input");
 
@@ -675,6 +680,9 @@ namespace MWInput
                                         Settings::Manager::getInt("resolution y", "Video"),
                                         Settings::Manager::getBool("fullscreen", "Video"),
                                         Settings::Manager::getBool("window border", "Video"));
+
+            // We should reload TrueType fonts to fit new resolution
+            MWBase::Environment::get().getWindowManager()->loadUserFonts();
         }
     }
 
@@ -719,7 +727,7 @@ namespace MWInput
         bool consumed = false;
         if (kc != OIS::KC_UNASSIGNED && !mInputBinder->detectingBindingState())
         {
-            consumed = MWBase::Environment::get().getWindowManager()->injectKeyPress(MyGUI::KeyCode::Enum(kc), 0);
+            consumed = MWBase::Environment::get().getWindowManager()->injectKeyPress(MyGUI::KeyCode::Enum(kc), 0, arg.repeat);
             if (SDL_IsTextInputActive() &&  // Little trick to check if key is printable
                                     ( !(SDLK_SCANCODE_MASK & arg.keysym.sym) && std::isprint(arg.keysym.sym)))
                 consumed = true;
@@ -823,7 +831,7 @@ namespace MWInput
         {
             resetIdleTime();
 
-            float x = arg.xrel * mCameraSensitivity * (1.0f/256.f);
+            float x = arg.xrel * mCameraSensitivity * (1.0f/256.f) * (mInvertX ? -1 : 1);
             float y = arg.yrel * mCameraSensitivity * (1.0f/256.f) * (mInvertY ? -1 : 1) * mCameraYMultiplier;
 
             float rot[3];
@@ -1003,9 +1011,9 @@ namespace MWInput
         if (!mControlSwitch["playerfighting"] || !mControlSwitch["playercontrols"])
             return;
 
-        // We want to interrupt animation only if attack is prepairing, but still is not triggered
+        // We want to interrupt animation only if attack is preparing, but still is not triggered
         // Otherwise we will get a "speedshooting" exploit, when player can skip reload animation by hitting "Toggle Weapon" key twice
-        if (MWBase::Environment::get().getMechanicsManager()->isAttackPrepairing(mPlayer->getPlayer()))
+        if (MWBase::Environment::get().getMechanicsManager()->isAttackPreparing(mPlayer->getPlayer()))
             mPlayer->setAttackingOrSpell(false);
         else if (MWBase::Environment::get().getMechanicsManager()->isAttackingOrSpell(mPlayer->getPlayer()))
             return;
@@ -1025,10 +1033,6 @@ namespace MWInput
         if (!MWBase::Environment::get().getWindowManager()->getRestEnabled () || MWBase::Environment::get().getWindowManager()->isGuiMode ())
             return;
 
-        if(mPlayer->enemiesNearby()) {//Check if in combat
-            MWBase::Environment::get().getWindowManager()->messageBox("#{sNotifyMessage2}"); //Nope,
-            return;
-        }
         MWBase::Environment::get().getWindowManager()->pushGuiMode (MWGui::GM_Rest); //Open rest GUI
 
     }
@@ -1107,6 +1111,7 @@ namespace MWInput
 
         if(MWBase::Environment::get().getWindowManager()->getMode() != MWGui::GM_Journal
                 && MWBase::Environment::get().getWindowManager()->getMode() != MWGui::GM_MainMenu
+                && MWBase::Environment::get().getWindowManager()->getMode() != MWGui::GM_Settings
                 && MWBase::Environment::get().getWindowManager ()->getJournalAllowed())
         {
             MWBase::Environment::get().getWindowManager()->pushGuiMode(MWGui::GM_Journal);
@@ -1152,7 +1157,7 @@ namespace MWInput
         if (MWBase::Environment::get().getWindowManager()->isGuiMode())
         {
             if (!SDL_IsTextInputActive() && !isLeftOrRightButton(A_Activate, mInputBinder, mFakeDeviceID, mJoystickLastUsed))
-                MWBase::Environment::get().getWindowManager()->injectKeyPress(MyGUI::KeyCode::Return, 0);
+                MWBase::Environment::get().getWindowManager()->injectKeyPress(MyGUI::KeyCode::Return, 0, false);
         }
         else if (mControlSwitch["playercontrols"])
             mPlayer->activate();
@@ -1168,7 +1173,7 @@ namespace MWInput
 
     void InputManager::toggleWalking()
     {
-        if (MWBase::Environment::get().getWindowManager()->isGuiMode()) return;
+        if (MWBase::Environment::get().getWindowManager()->isGuiMode() || SDL_IsTextInputActive()) return;
         mAlwaysRunActive = !mAlwaysRunActive;
 
         Settings::Manager::setBool("always run", "Input", mAlwaysRunActive);
@@ -1191,7 +1196,7 @@ namespace MWInput
     void InputManager::updateIdleTime(float dt)
     {
         static const float vanityDelay = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>()
-                .find("fVanityDelay")->getFloat();
+                .find("fVanityDelay")->mValue.getFloat();
         if (mTimeIdle >= 0.f)
             mTimeIdle += dt;
         if (mTimeIdle > vanityDelay) {

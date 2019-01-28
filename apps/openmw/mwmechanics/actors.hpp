@@ -28,8 +28,6 @@ namespace MWMechanics
             void addBoundItem (const std::string& itemId, const MWWorld::Ptr& actor);
             void removeBoundItem (const std::string& itemId, const MWWorld::Ptr& actor);
 
-            void updateNpc(const MWWorld::Ptr &ptr, float duration);
-
             void adjustMagicEffects (const MWWorld::Ptr& creature);
 
             void calculateDynamicStats (const MWWorld::Ptr& ptr);
@@ -39,7 +37,7 @@ namespace MWMechanics
 
             void calculateRestoration (const MWWorld::Ptr& ptr, float duration);
 
-            void updateDrowning (const MWWorld::Ptr& ptr, float duration);
+            void updateDrowning (const MWWorld::Ptr& ptr, float duration, bool isKnockedOut, bool isPlayer);
 
             void updateEquippedLight (const MWWorld::Ptr& ptr, float duration, bool mayEquip);
 
@@ -66,6 +64,9 @@ namespace MWMechanics
             /// Update magic effects for an actor. Usually done automatically once per frame, but if we're currently
             /// paused we may want to do it manually (after equipping permanent enchantment)
             void updateMagicEffects (const MWWorld::Ptr& ptr);
+
+            void updateProcessingRange();
+            float getProcessingRange() const;
 
             void addActor (const MWWorld::Ptr& ptr, bool updateImmediately=false);
             ///< Register an actor for stats management
@@ -118,7 +119,7 @@ namespace MWMechanics
             int countDeaths (const std::string& id) const;
             ///< Return the number of deaths for actors with the given ID.
 
-            bool isAttackPrepairing(const MWWorld::Ptr& ptr);
+            bool isAttackPreparing(const MWWorld::Ptr& ptr);
             bool isRunning(const MWWorld::Ptr& ptr);
             bool isSneaking(const MWWorld::Ptr& ptr);
 
@@ -170,6 +171,7 @@ namespace MWMechanics
     private:
         PtrActorMap mActors;
         float mTimerDisposeSummonsCorpses;
+        float mActorsProcessingRange;
 
     };
 }

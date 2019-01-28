@@ -166,7 +166,7 @@ class CollectLowestTransformsVisitor : public BaseOptimizerVisitor
             }
             else
             {
-                // for all current objects mark a NULL transform for them.
+                // for all current objects mark a nullptr transform for them.
                 registerWithCurrentObjects(0);
             }
         }
@@ -737,6 +737,20 @@ bool Optimizer::CombineStaticTransformsVisitor::removeTransforms(osg::Node* node
 // RemoveEmptyNodes.
 ////////////////////////////////////////////////////////////////////////////
 
+void Optimizer::RemoveEmptyNodesVisitor::apply(osg::Switch& switchNode)
+{
+    // We should keep all switch child nodes since they reflect different switch states.
+    for (unsigned int i=0; i<switchNode.getNumChildren(); ++i)
+        traverse(*switchNode.getChild(i));
+}
+
+void Optimizer::RemoveEmptyNodesVisitor::apply(osg::LOD& lod)
+{
+    // don't remove any direct children of the LOD because they are used to define each LOD level.
+    for (unsigned int i=0; i<lod.getNumChildren(); ++i)
+        traverse(*lod.getChild(i));
+}
+
 void Optimizer::RemoveEmptyNodesVisitor::apply(osg::Group& group)
 {
     if (group.getNumParents()>0)
@@ -807,6 +821,13 @@ void Optimizer::RemoveRedundantNodesVisitor::apply(osg::LOD& lod)
         traverse(*lod.getChild(i));
 }
 
+void Optimizer::RemoveRedundantNodesVisitor::apply(osg::Switch& switchNode)
+{
+    // We should keep all switch child nodes since they reflect different switch states.
+    for (unsigned int i=0; i<switchNode.getNumChildren(); ++i)
+        traverse(*switchNode.getChild(i));
+}
+
 void Optimizer::RemoveRedundantNodesVisitor::apply(osg::Group& group)
 {
     if (typeid(group)==typeid(osg::Group) &&
@@ -826,7 +847,7 @@ void Optimizer::RemoveRedundantNodesVisitor::apply(osg::Transform& transform)
         isOperationPermissible(transform))
     {
         osg::Matrix matrix;
-        transform.computeWorldToLocalMatrix(matrix,NULL);
+        transform.computeWorldToLocalMatrix(matrix,nullptr);
         if (matrix.isIdentity())
         {
             _redundantNodeList.insert(&transform);
@@ -1000,7 +1021,7 @@ struct LessGeometryPrimitiveType
 };
 
 
-/// Shortcut to get size of an array, even if pointer is NULL.
+/// Shortcut to get size of an array, even if pointer is nullptr.
 inline unsigned int getSize(const osg::Array * a) { return a ? a->getNumElements() : 0; }
 
 /// When merging geometries, tests if two arrays can be merged, regarding to their number of components, and the number of vertices.
@@ -1170,7 +1191,7 @@ bool Optimizer::MergeGeometryVisitor::mergeGroup(osg::Group& group)
                 MergeList::iterator eachMergeList=mergeListTmp.begin();
                 for(;eachMergeList!=mergeListTmp.end();++eachMergeList)
                 {
-                    if (!eachMergeList->empty() && eachMergeList->front()!=NULL
+                    if (!eachMergeList->empty() && eachMergeList->front()!=nullptr
                         && isAbleToMerge(*eachMergeList->front(),*geomToPush))
                     {
                         eachMergeList->push_back(geomToPush);
@@ -1849,7 +1870,8 @@ bool Optimizer::MergeGeometryVisitor::mergePrimitive(osg::DrawElementsUInt& lhs,
 
 bool Optimizer::MergeGroupsVisitor::isOperationPermissible(osg::Group& node)
 {
-    return !node.asTransform() &&
+    return !node.asSwitch() &&
+           !node.asTransform() &&
            !node.getCullCallback() &&
            !node.getEventCallback() &&
            !node.getUpdateCallback() &&
@@ -1860,6 +1882,12 @@ void Optimizer::MergeGroupsVisitor::apply(osg::LOD &lod)
 {
     // don't merge the direct children of the LOD because they are used to define each LOD level.
     traverse(lod);
+}
+
+void Optimizer::MergeGroupsVisitor::apply(osg::Switch &switchNode)
+{
+    // We should keep all switch child nodes since they reflect different switch states.
+    traverse(switchNode);
 }
 
 void Optimizer::MergeGroupsVisitor::apply(osg::Group &group)

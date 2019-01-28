@@ -1,13 +1,16 @@
 #include "projectilemanager.hpp"
 
 #include <iomanip>
-#include <iostream>
 
 #include <osg/PositionAttitudeTransform>
 #include <osg/ComputeBoundsVisitor>
 
+#include <components/debug/debuglog.hpp>
+
 #include <components/esm/esmwriter.hpp>
 #include <components/esm/projectilestate.hpp>
+
+#include <components/misc/constants.hpp>
 
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/scenemanager.hpp>
@@ -106,11 +109,10 @@ namespace
         
         if (projectileEffects.mList.size() > 1) // insert a VFX_Multiple projectile if there are multiple projectile effects
         {
-            std::ostringstream ID;
-            ID << "VFX_Multiple" << effects->mList.size();
+            const std::string ID = "VFX_Multiple" + std::to_string(effects->mList.size());
             std::vector<std::string>::iterator it;
             it = projectileIDs.begin();
-            it = projectileIDs.insert(it, ID.str());
+            it = projectileIDs.insert(it, ID);
         }
         return projectileEffects;
     }
@@ -384,7 +386,7 @@ namespace MWWorld
         {
             osg::Quat orient = it->mNode->getAttitude();
             static float fTargetSpellMaxSpeed = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>()
-                        .find("fTargetSpellMaxSpeed")->getFloat();
+                        .find("fTargetSpellMaxSpeed")->mValue.getFloat();
             float speed = fTargetSpellMaxSpeed * it->mSpeed;
             osg::Vec3f direction = orient * osg::Vec3f(0,1,0);
             direction.normalize();
@@ -459,7 +461,7 @@ namespace MWWorld
         {
             // gravity constant - must be way lower than the gravity affecting actors, since we're not
             // simulating aerodynamics at all
-            it->mVelocity -= osg::Vec3f(0, 0, 627.2f * 0.1f) * duration;
+            it->mVelocity -= osg::Vec3f(0, 0, Constants::GravityConst * Constants::UnitsPerMeter * 0.1f) * duration;
 
             osg::Vec3f pos(it->mNode->getPosition());
             osg::Vec3f newPos = pos + it->mVelocity * duration;
@@ -647,7 +649,7 @@ namespace MWWorld
             }
             catch(...)
             {
-                std::cerr << "Warning: Failed to recreate magic projectile from saved data (id \"" << state.mSpellId << "\" no longer exists?)" << std::endl;
+                Log(Debug::Warning) << "Warning: Failed to recreate magic projectile from saved data (id \"" << state.mSpellId << "\" no longer exists?)";
                 return true;
             }
 

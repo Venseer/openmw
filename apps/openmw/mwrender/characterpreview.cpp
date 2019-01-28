@@ -1,7 +1,6 @@
 #include "characterpreview.hpp"
 
 #include <cmath>
-#include <iostream>
 
 #include <osg/Material>
 #include <osg/Fog>
@@ -14,6 +13,7 @@
 #include <osgUtil/IntersectionVisitor>
 #include <osgUtil/LineSegmentIntersector>
 
+#include <components/debug/debuglog.hpp>
 #include <components/fallback/fallback.hpp>
 #include <components/sceneutil/lightmanager.hpp>
 
@@ -239,7 +239,7 @@ namespace MWRender
 
     void CharacterPreview::rebuild()
     {
-        mAnimation = NULL;
+        mAnimation = nullptr;
 
         mAnimation = new NpcAnimation(mCharacter, mNode, mResourceSystem, true,
                                       (renderHeadOnly() ? NpcAnimation::VM_HeadOnly : NpcAnimation::VM_Normal));
@@ -305,24 +305,37 @@ namespace MWRender
                    type == ESM::Weapon::LongBladeOneHand ||
                    type == ESM::Weapon::BluntOneHand ||
                    type == ESM::Weapon::AxeOneHand ||
-                   type == ESM::Weapon::MarksmanThrown ||
-                   type == ESM::Weapon::MarksmanCrossbow ||
-                   type == ESM::Weapon::MarksmanBow)
+                   type == ESM::Weapon::MarksmanThrown)
+                {
                     groupname = "inventoryweapononehand";
+                }
+                else if(type == ESM::Weapon::MarksmanCrossbow ||
+                        type == ESM::Weapon::MarksmanBow)
+                {
+                    groupname = "inventoryweapononehand";
+                    showCarriedLeft = false;
+                }
                 else if(type == ESM::Weapon::LongBladeTwoHand ||
                         type == ESM::Weapon::BluntTwoClose ||
                         type == ESM::Weapon::AxeTwoHand)
+                {
                     groupname = "inventoryweapontwohand";
+                    showCarriedLeft = false;
+                }
                 else if(type == ESM::Weapon::BluntTwoWide ||
                         type == ESM::Weapon::SpearTwoWide)
+                {
                     groupname = "inventoryweapontwowide";
+                    showCarriedLeft = false;
+                }
                 else
+                {
                     groupname = "inventoryhandtohand";
-
-                showCarriedLeft = (iter->getClass().canBeEquipped(*iter, mCharacter).first != 2);
+                    showCarriedLeft = false;
+                }
            }
-            else
-                groupname = "inventoryhandtohand";
+           else
+               groupname = "inventoryhandtohand";
         }
 
         mAnimation->showCarriedLeft(showCarriedLeft);
@@ -380,7 +393,7 @@ namespace MWRender
 
     void InventoryPreview::updatePtr(const MWWorld::Ptr &ptr)
     {
-        mCharacter = MWWorld::Ptr(ptr.getBase(), NULL);
+        mCharacter = MWWorld::Ptr(ptr.getBase(), nullptr);
     }
 
     void InventoryPreview::onSetup()
@@ -403,7 +416,7 @@ namespace MWRender
         , mRef(&mBase)
         , mPitchRadians(osg::DegreesToRadians(6.f))
     {
-        mCharacter = MWWorld::Ptr(&mRef, NULL);
+        mCharacter = MWWorld::Ptr(&mRef, nullptr);
     }
 
     RaceSelectionPreview::~RaceSelectionPreview()
@@ -474,7 +487,7 @@ namespace MWRender
             mCamera->addUpdateCallback(mUpdateCameraCallback);
         }
         else
-            std::cerr << "Error: Bip01 Head node not found" << std::endl;
+            Log(Debug::Error) << "Error: Bip01 Head node not found";
     }
 
 }

@@ -276,7 +276,7 @@ namespace Compiler
             extensions.registerInstruction ("gotojail", "", opcodeGoToJail);
             extensions.registerFunction ("getlocked", 'l', "", opcodeGetLocked, opcodeGetLockedExplicit);
             extensions.registerFunction ("geteffect", 'l', "S", opcodeGetEffect, opcodeGetEffectExplicit);
-            extensions.registerInstruction ("addsoulgem", "cc", opcodeAddSoulGem, opcodeAddSoulGemExplicit);
+            extensions.registerInstruction ("addsoulgem", "ccz", opcodeAddSoulGem, opcodeAddSoulGemExplicit);
             extensions.registerInstruction ("removesoulgem", "c/l", opcodeRemoveSoulGem, opcodeRemoveSoulGemExplicit);
             extensions.registerInstruction ("drop", "cl", opcodeDrop, opcodeDropExplicit);
             extensions.registerInstruction ("dropsoulgem", "c", opcodeDropSoulGem, opcodeDropSoulGemExplicit);
@@ -320,6 +320,10 @@ namespace Compiler
             extensions.registerInstruction ("removefromlevitem", "ccl", opcodeRemoveFromLevItem);
             extensions.registerInstruction ("tb", "", opcodeToggleBorders);
             extensions.registerInstruction ("toggleborders", "", opcodeToggleBorders);
+            extensions.registerInstruction ("togglenavmesh", "", opcodeToggleNavMesh);
+            extensions.registerInstruction ("tap", "", opcodeToggleActorsPaths);
+            extensions.registerInstruction ("toggleactorspaths", "", opcodeToggleActorsPaths);
+            extensions.registerInstruction ("setnavmeshnumber", "l", opcodeSetNavMeshNumberToRender);
         }
     }
 
@@ -463,7 +467,7 @@ namespace Compiler
             extensions.registerInstruction ("modpccrimelevel", "f", opcodeModPCCrimeLevel);
 
             extensions.registerInstruction ("addspell", "cz", opcodeAddSpell, opcodeAddSpellExplicit);
-            extensions.registerInstruction ("removespell", "c", opcodeRemoveSpell,
+            extensions.registerInstruction ("removespell", "cz", opcodeRemoveSpell,
                 opcodeRemoveSpellExplicit);
             extensions.registerInstruction ("removespelleffects", "c", opcodeRemoveSpellEffects,
                 opcodeRemoveSpellEffectsExplicit);
@@ -546,7 +550,7 @@ namespace Compiler
             extensions.registerInstruction("moveworld","cf",opcodeMoveWorld,opcodeMoveWorldExplicit);
             extensions.registerFunction("getstartingangle",'f',"c",opcodeGetStartingAngle,opcodeGetStartingAngleExplicit);
             extensions.registerInstruction("resetactors","",opcodeResetActors);
-            extensions.registerInstruction("fixme","",opcodeFixme, opcodeFixmeExplicit);
+            extensions.registerInstruction("fixme","",opcodeFixme);
             extensions.registerInstruction("ra","",opcodeResetActors);
         }
     }

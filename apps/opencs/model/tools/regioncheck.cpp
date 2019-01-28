@@ -1,10 +1,5 @@
 #include "regioncheck.hpp"
 
-#include <sstream>
-#include <map>
-
-#include <components/esm/loadregn.hpp>
-
 #include "../prefs/state.hpp"
 
 #include "../world/universalid.hpp"
@@ -36,7 +31,7 @@ void CSMTools::RegionCheckStage::perform (int stage, CSMDoc::Messages& messages)
 
     // test for empty name
     if (region.mName.empty())
-        messages.add(id, region.mId + " has an empty name", "", CSMDoc::Message::Severity_Error);
+        messages.add(id, "Name is missing", "", CSMDoc::Message::Severity_Error);
 
     /// \todo test that the ID in mSleeplist exists
 
@@ -46,6 +41,12 @@ void CSMTools::RegionCheckStage::perform (int stage, CSMDoc::Messages& messages)
         region.mData.mA + region.mData.mB;
     if (chances != 100)
         messages.add(id, "Weather chances do not add up to 100", "", CSMDoc::Message::Severity_Error);
+
+    for (const ESM::Region::SoundRef& sound : region.mSoundList)
+    {
+        if (sound.mChance > 100)
+            messages.add(id, "Chance of '" + sound.mSound.toString() + "' sound to play is over 100 percent", "", CSMDoc::Message::Severity_Warning);
+    }
 
     /// \todo check data members that can't be edited in the table view
 }

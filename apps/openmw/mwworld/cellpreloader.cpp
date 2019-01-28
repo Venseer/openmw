@@ -1,7 +1,9 @@
 #include "cellpreloader.hpp"
 
-#include <iostream>
+#include <atomic>
+#include <limits>
 
+#include <components/debug/debuglog.hpp>
 #include <components/resource/scenemanager.hpp>
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/bulletshapemanager.hpp>
@@ -160,7 +162,7 @@ namespace MWWorld
         MWRender::LandManager* mLandManager;
         bool mPreloadInstances;
 
-        volatile bool mAbort;
+        std::atomic<bool> mAbort;
 
         osg::ref_ptr<Terrain::View> mTerrainView;
 
@@ -207,13 +209,13 @@ namespace MWWorld
         {
             mTerrainPreloadItem->abort();
             mTerrainPreloadItem->waitTillDone();
-            mTerrainPreloadItem = NULL;
+            mTerrainPreloadItem = nullptr;
         }
 
         if (mUpdateCacheItem)
         {
             mUpdateCacheItem->waitTillDone();
-            mUpdateCacheItem = NULL;
+            mUpdateCacheItem = nullptr;
         }
 
         for (PreloadMap::iterator it = mPreloadCells.begin(); it != mPreloadCells.end();++it)
@@ -229,12 +231,12 @@ namespace MWWorld
     {
         if (!mWorkQueue)
         {
-            std::cerr << "Error: can't preload, no work queue set " << std::endl;
+            Log(Debug::Error) << "Error: can't preload, no work queue set";
             return;
         }
         if (cell->getState() == CellStore::State_Unloaded)
         {
-            std::cerr << "Error: can't preload objects for unloaded cell" << std::endl;
+            Log(Debug::Error) << "Error: can't preload objects for unloaded cell";
             return;
         }
 
@@ -250,7 +252,7 @@ namespace MWWorld
         {
             // throw out oldest cell to make room
             PreloadMap::iterator oldestCell = mPreloadCells.begin();
-            double oldestTimestamp = DBL_MAX;
+            double oldestTimestamp = std::numeric_limits<double>::max();
             double threshold = 1.0; // seconds
             for (PreloadMap::iterator it = mPreloadCells.begin(); it != mPreloadCells.end(); ++it)
             {
@@ -393,7 +395,7 @@ namespace MWWorld
         }
 
     private:
-        volatile bool mAbort;
+        std::atomic<bool> mAbort;
         std::vector<osg::ref_ptr<Terrain::View> > mTerrainViews;
         Terrain::World* mWorld;
         std::vector<osg::Vec3f> mPreloadPositions;

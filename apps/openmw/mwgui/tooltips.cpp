@@ -8,6 +8,7 @@
 #include <MyGUI_ImageBox.h>
 
 #include <components/settings/settings.hpp>
+#include <components/widgets/box.hpp>
 
 #include "../mwbase/world.hpp"
 #include "../mwbase/environment.hpp"
@@ -329,6 +330,21 @@ namespace MWGui
         }
     }
 
+    void ToolTips::clear()
+    {
+        mFocusObject = MWWorld::Ptr();
+
+        while (mDynamicToolTipBox->getChildCount())
+        {
+            MyGUI::Gui::getInstance().destroyWidget(mDynamicToolTipBox->getChildAt(0));
+        }
+
+        for (unsigned int i=0; i < mMainWidget->getChildCount(); ++i)
+        {
+            mMainWidget->getChildAt(i)->setVisible(false);
+        }
+    }
+
     void ToolTips::setFocusObject(const MWWorld::Ptr& focus)
     {
         mFocusObject = focus;
@@ -421,7 +437,7 @@ namespace MWGui
 
         std::string realImage = MWBase::Environment::get().getWindowManager()->correctIconPath(image);
 
-        MyGUI::EditBox* captionWidget = mDynamicToolTipBox->createWidget<MyGUI::EditBox>("NormalText", MyGUI::IntCoord(0, 0, 300, 300), MyGUI::Align::Left | MyGUI::Align::Top, "ToolTipCaption");
+        Gui::EditBox* captionWidget = mDynamicToolTipBox->createWidget<Gui::EditBox>("NormalText", MyGUI::IntCoord(0, 0, 300, 300), MyGUI::Align::Left | MyGUI::Align::Top, "ToolTipCaption");
         captionWidget->setEditStatic(true);
         captionWidget->setNeedKeyFocus(false);
         captionWidget->setCaptionWithReplacing(caption);
@@ -429,7 +445,7 @@ namespace MWGui
 
         int captionHeight = std::max(caption != "" ? captionSize.height : 0, imageSize);
 
-        MyGUI::EditBox* textWidget = mDynamicToolTipBox->createWidget<MyGUI::EditBox>("SandText", MyGUI::IntCoord(0, captionHeight+imageCaptionVPadding, 300, 300-captionHeight-imageCaptionVPadding), MyGUI::Align::Stretch, "ToolTipText");
+        Gui::EditBox* textWidget = mDynamicToolTipBox->createWidget<Gui::EditBox>("SandText", MyGUI::IntCoord(0, captionHeight+imageCaptionVPadding, 300, 300-captionHeight-imageCaptionVPadding), MyGUI::Align::Stretch, "ToolTipText");
         textWidget->setEditStatic(true);
         textWidget->setEditMultiLine(true);
         textWidget->setEditWordWrap(info.wordWrap);
@@ -447,7 +463,7 @@ namespace MWGui
             MyGUI::ImageBox* icon = mDynamicToolTipBox->createWidget<MyGUI::ImageBox>("MarkerButton",
                 MyGUI::IntCoord(padding.left, totalSize.height+padding.top, 8, 8), MyGUI::Align::Default);
             icon->setColour(MyGUI::Colour(1.0f, 0.3f, 0.3f));
-            MyGUI::EditBox* edit = mDynamicToolTipBox->createWidget<MyGUI::EditBox>("SandText",
+            Gui::EditBox* edit = mDynamicToolTipBox->createWidget<Gui::EditBox>("SandText",
                 MyGUI::IntCoord(padding.left+8+4, totalSize.height+padding.top, 300-padding.left-8-4, 300-totalSize.height),
                                                                                     MyGUI::Align::Default);
             edit->setEditMultiLine(true);
@@ -583,9 +599,7 @@ namespace MWGui
 
     std::string ToolTips::toString(const int value)
     {
-        std::ostringstream stream;
-        stream << value;
-        return stream.str();
+        return std::to_string(value);
     }
 
     std::string ToolTips::getWeightString(const float weight, const std::string& prefix)

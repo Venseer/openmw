@@ -1,8 +1,10 @@
 #include "objects.hpp"
 
-#include <iostream>
+#include <components/debug/debuglog.hpp>
+#include <components/esm/loadcont.hpp>
 
 #include "../mwbase/environment.hpp"
+#include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
 
 #include "movement.hpp"
@@ -20,7 +22,7 @@ Objects::~Objects()
   for (; it != mObjects.end();++it)
   {
     delete it->second;
-    it->second = NULL;
+    it->second = nullptr;
   }
 }
 
@@ -77,6 +79,40 @@ void Objects::update(float duration, bool paused)
         for(PtrControllerMap::iterator iter(mObjects.begin());iter != mObjects.end();++iter)
             iter->second->update(duration);
     }
+    else
+    {
+        // We still should play container opening animation in the Container GUI mode.
+        MWGui::GuiMode mode = MWBase::Environment::get().getWindowManager()->getMode();
+        if(mode != MWGui::GM_Container)
+            return;
+
+        for(PtrControllerMap::iterator iter(mObjects.begin());iter != mObjects.end();++iter)
+        {
+            if (iter->first.getTypeName() != typeid(ESM::Container).name())
+                continue;
+
+            if (iter->second->isAnimPlaying("containeropen"))
+            {
+                iter->second->update(duration);
+                MWBase::Environment::get().getWorld()->updateAnimatedCollisionShape(iter->first);
+            }
+        }
+    }
+}
+
+bool Objects::onOpen(const MWWorld::Ptr& ptr)
+{
+    PtrControllerMap::iterator iter = mObjects.find(ptr);
+    if(iter != mObjects.end())
+        return iter->second->onOpen();
+    return false;
+}
+
+void Objects::onClose(const MWWorld::Ptr& ptr)
+{
+    PtrControllerMap::iterator iter = mObjects.find(ptr);
+    if(iter != mObjects.end())
+        iter->second->onClose();
 }
 
 bool Objects::playAnimationGroup(const MWWorld::Ptr& ptr, const std::string& groupName, int mode, int number, bool persist)
@@ -88,7 +124,7 @@ bool Objects::playAnimationGroup(const MWWorld::Ptr& ptr, const std::string& gro
     }
     else
     {
-        std::cerr<< "Warning: Objects::playAnimationGroup:  Unable to find " << ptr.getCellRef().getRefId() << std::endl;
+        Log(Debug::Warning) << "Warning: Objects::playAnimationGroup: Unable to find " << ptr.getCellRef().getRefId();
         return false;
     }
 }

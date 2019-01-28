@@ -12,6 +12,7 @@
 
 #include <SDL_video.h>
 
+#include <components/debug/debuglog.hpp>
 #include <components/widgets/sharedstatebutton.hpp>
 #include <components/settings/settings.hpp>
 
@@ -19,6 +20,7 @@
 #include "../mwbase/world.hpp"
 #include "../mwbase/soundmanager.hpp"
 #include "../mwbase/inputmanager.hpp"
+#include "../mwbase/mechanicsmanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 
 #include "confirmationdialog.hpp"
@@ -31,7 +33,8 @@ namespace
         if (val == "linear")  return "Trilinear";
         if (val == "nearest") return "Bilinear";
         if (val != "none")
-            std::cerr<< "Warning: Invalid texture mipmap option: "<<val <<std::endl;
+            Log(Debug::Warning) << "Warning: Invalid texture mipmap option: "<< val;
+
         return "Other";
     }
 
@@ -398,7 +401,7 @@ namespace MWGui
         else if(pos == 1)
             Settings::Manager::setString("texture mipmap", "General", "linear");
         else
-            std::cerr<< "Unexpected option pos "<<pos <<std::endl;
+            Log(Debug::Warning) << "Unexpected option pos " << pos;
         apply();
     }
 
@@ -435,6 +438,7 @@ namespace MWGui
         MWBase::Environment::get().getSoundManager()->processChangedSettings(changed);
         MWBase::Environment::get().getWindowManager()->processChangedSettings(changed);
         MWBase::Environment::get().getInputManager()->processChangedSettings(changed);
+        MWBase::Environment::get().getMechanicsManager()->processChangedSettings(changed);
     }
 
     void SettingsWindow::onKeyboardSwitchClicked(MyGUI::Widget* _sender)

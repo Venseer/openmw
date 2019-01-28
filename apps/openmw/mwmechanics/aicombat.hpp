@@ -64,7 +64,7 @@ namespace MWMechanics
         mAttackRange(0.0f),
         mCombatMove(false),
         mLastTargetPos(0,0,0),
-        mCell(NULL),
+        mCell(nullptr),
         mCurrentAction(),
         mActionCooldown(0.0f),
         mStrength(),
@@ -129,7 +129,7 @@ namespace MWMechanics
             /// Transfer desired movement (from AiCombatStorage) to Actor
             void updateActorsMovement(const MWWorld::Ptr& actor, float duration, AiCombatStorage& storage);
             void rotateActorOnAxis(const MWWorld::Ptr& actor, int axis, 
-                MWMechanics::Movement& actorMovementSettings, MWMechanics::Movement& desiredMovement);
+                MWMechanics::Movement& actorMovementSettings, AiCombatStorage& storage);
     };
     
     

@@ -1,8 +1,7 @@
 #include "util.hpp"
 
+#include <limits>
 #include <stdexcept>
-#include <climits>
-#include <cfloat>
 
 #include <QUndoStack>
 #include <QMetaProperty>
@@ -131,7 +130,7 @@ void CSVWorld::CommandDelegate::setModelDataImp (QWidget *editor, QAbstractItemM
 
     // Color columns use a custom editor, so we need to fetch selected color from it.
     CSVWidget::ColorEditor *colorEditor = qobject_cast<CSVWidget::ColorEditor *>(editor);
-    if (colorEditor != NULL)
+    if (colorEditor != nullptr)
     {
         variant = colorEditor->colorInt();
     }
@@ -209,14 +208,14 @@ QWidget *CSVWorld::CommandDelegate::createEditor (QWidget *parent, const QStyleO
         case CSMWorld::ColumnBase::Display_Integer:
         {
             DialogueSpinBox *sb = new DialogueSpinBox(parent);
-            sb->setRange(INT_MIN, INT_MAX);
+            sb->setRange(std::numeric_limits<int>::min(), std::numeric_limits<int>::max());
             return sb;
         }
 
         case CSMWorld::ColumnBase::Display_UnsignedInteger8:
         {
             DialogueSpinBox *sb = new DialogueSpinBox(parent);
-            sb->setRange(0, UCHAR_MAX);
+            sb->setRange(0, std::numeric_limits<unsigned char>::max());
             return sb;
         }
 
@@ -227,7 +226,7 @@ QWidget *CSVWorld::CommandDelegate::createEditor (QWidget *parent, const QStyleO
         case CSMWorld::ColumnBase::Display_Float:
         {
             DialogueDoubleSpinBox *dsb = new DialogueDoubleSpinBox(parent);
-            dsb->setRange(-FLT_MAX, FLT_MAX);
+            dsb->setRange(-std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
             dsb->setSingleStep(0.01f);
             dsb->setDecimals(3);
             return dsb;
@@ -236,7 +235,7 @@ QWidget *CSVWorld::CommandDelegate::createEditor (QWidget *parent, const QStyleO
         case CSMWorld::ColumnBase::Display_Double:
         {
             DialogueDoubleSpinBox *dsb = new DialogueDoubleSpinBox(parent);
-            dsb->setRange(-FLT_MAX, FLT_MAX);
+            dsb->setRange(-std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
             dsb->setSingleStep(0.01f);
             dsb->setDecimals(6);
             return dsb;
@@ -324,7 +323,7 @@ void CSVWorld::CommandDelegate::setEditorData (QWidget *editor, const QModelInde
 
     // Color columns use a custom editor, so we need explicitly set a data for it
     CSVWidget::ColorEditor *colorEditor = qobject_cast<CSVWidget::ColorEditor *>(editor);
-    if (colorEditor != NULL)
+    if (colorEditor != nullptr)
     {
         colorEditor->setColor(variant.toInt());
         return;

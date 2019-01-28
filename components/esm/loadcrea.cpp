@@ -1,6 +1,6 @@
 #include "loadcrea.hpp"
 
-#include <iostream>
+#include <components/debug/debuglog.hpp>
 
 #include "esmreader.hpp"
 #include "esmwriter.hpp"
@@ -23,6 +23,7 @@ namespace ESM {
 
         mScale = 1.f;
         mHasAI = false;
+        mAiData.blank();
 
         bool hasName = false;
         bool hasNpdt = false;
@@ -89,7 +90,7 @@ namespace ESM {
                     // seems to occur only in .ESS files, unsure of purpose
                     int index;
                     esm.getHT(index);
-                    std::cerr << "Creature::load: Unhandled INDX " << index << std::endl;
+                    Log(Debug::Warning) << "Creature::load: Unhandled INDX " << index;
                     break;
                 default:
                     esm.fail("Unknown subrecord");
@@ -160,7 +161,6 @@ namespace ESM {
         mSpells.mList.clear();
         mHasAI = false;
         mAiData.blank();
-        mAiData.mServices = 0;
         mAiPackage.mList.clear();
         mTransport.mList.clear();
     }

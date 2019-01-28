@@ -6,6 +6,8 @@
 #include <MyGUI_Gui.h>
 #include <MyGUI_Window.h>
 
+#include <components/debug/debuglog.hpp>
+
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/environment.hpp"
 
@@ -23,6 +25,8 @@ bool shouldAcceptKeyFocus(MyGUI::Widget* w)
 /// Recursively get all child widgets that accept keyboard input
 void getKeyFocusWidgets(MyGUI::Widget* parent, std::vector<MyGUI::Widget*>& results)
 {
+    assert(parent != nullptr);
+
     if (!parent->getVisible() || !parent->getEnabled())
         return;
 
@@ -49,7 +53,14 @@ KeyboardNavigation::KeyboardNavigation()
 
 KeyboardNavigation::~KeyboardNavigation()
 {
-    MyGUI::WidgetManager::getInstance().unregisterUnlinker(this);
+    try
+    {
+        MyGUI::WidgetManager::getInstance().unregisterUnlinker(this);
+    }
+    catch(const MyGUI::Exception& e)
+    {
+        Log(Debug::Error) << "Error in the destructor: " << e.what();
+    }
 }
 
 void KeyboardNavigation::saveFocus(int mode)
@@ -172,7 +183,7 @@ enum Direction
     D_Prev
 };
 
-bool KeyboardNavigation::injectKeyPress(MyGUI::KeyCode key, unsigned int text)
+bool KeyboardNavigation::injectKeyPress(MyGUI::KeyCode key, unsigned int text, bool repeat)
 {
     if (!mEnabled)
         return false;
@@ -192,7 +203,14 @@ bool KeyboardNavigation::injectKeyPress(MyGUI::KeyCode key, unsigned int text)
     case MyGUI::KeyCode::Return:
     case MyGUI::KeyCode::NumpadEnter:
     case MyGUI::KeyCode::Space:
+    {
+        // We should disable repeating for activation keys
+        MyGUI::InputManager::getInstance().injectKeyRelease(MyGUI::KeyCode::None);
+        if (repeat)
+            return true;
+
         return accept();
+    }
     default:
         return false;
     }

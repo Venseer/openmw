@@ -13,6 +13,7 @@
 #include <osg/Material>
 #include <osg/Version>
 
+#include <components/debug/debuglog.hpp>
 #include <components/resource/scenemanager.hpp>
 #include <components/resource/resourcesystem.hpp>
 #include <components/sceneutil/lightmanager.hpp>
@@ -96,7 +97,14 @@ RenderWidget::RenderWidget(QWidget *parent, Qt::WindowFlags f)
 
 RenderWidget::~RenderWidget()
 {
-    CompositeViewer::get().removeView(mView);
+    try
+    {
+        CompositeViewer::get().removeView(mView);
+    }
+    catch(const std::exception& e)
+    {
+        Log(Debug::Error) << "Error in the destructor: " << e.what();
+    }
 }
 
 void RenderWidget::flagAsModified()
@@ -185,7 +193,7 @@ SceneWidget::SceneWidget(std::shared_ptr<Resource::ResourceSystem> resourceSyste
     bool retrieveInput)
     : RenderWidget(parent, f)
     , mResourceSystem(resourceSystem)
-    , mLighting(NULL)
+    , mLighting(nullptr)
     , mHasDefaultAmbient(false)
     , mPrevMouseX(0)
     , mPrevMouseY(0)
@@ -425,21 +433,21 @@ void SceneWidget::selectNavigationMode (const std::string& mode)
 {
     if (mode=="1st")
     {
-        mCurrentCamControl->setCamera(NULL);
+        mCurrentCamControl->setCamera(nullptr);
         mCurrentCamControl = mFreeCamControl;
         mFreeCamControl->setCamera(getCamera());
         mFreeCamControl->fixUpAxis(CameraController::WorldUp);
     }
     else if (mode=="free")
     {
-        mCurrentCamControl->setCamera(NULL);
+        mCurrentCamControl->setCamera(nullptr);
         mCurrentCamControl = mFreeCamControl;
         mFreeCamControl->setCamera(getCamera());
         mFreeCamControl->unfixUpAxis();
     }
     else if (mode=="orbit")
     {
-        mCurrentCamControl->setCamera(NULL);
+        mCurrentCamControl->setCamera(nullptr);
         mCurrentCamControl = mOrbitCamControl;
         mOrbitCamControl->setCamera(getCamera());
         mOrbitCamControl->reset();

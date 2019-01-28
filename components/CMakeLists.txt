@@ -33,7 +33,7 @@ add_component_dir (settings
     )
 
 add_component_dir (bsa
-    bsa_file
+    bsa_file compressedbsafile memorystream
     )
 
 add_component_dir (vfs
@@ -51,6 +51,7 @@ add_component_dir (shader
 add_component_dir (sceneutil
     clone attach visitor util statesetupdater controller skeleton riggeometry morphgeometry lightcontroller
     lightmanager lightutil positionattitudetransform workqueue unrefqueue pathgridutil waterutil writescene serialize optimizer
+    actorutil detourdebugdraw navmesh agentpath
     )
 
 add_component_dir (nif
@@ -77,7 +78,7 @@ add_component_dir (esm
     loadweap records aipackage effectlist spelllist variant variantimp loadtes3 cellref filter
     savedgame journalentry queststate locals globalscript player objectstate cellid cellstate globalmap inventorystate containerstate npcstate creaturestate dialoguestate statstate
     npcstats creaturestats weatherstate quickkeys fogstate spellstate activespells creaturelevliststate doorstate projectilestate debugprofile
-    aisequence magiceffects util custommarkerstate stolenitems transport animationstate controlsstate
+    aisequence magiceffects util custommarkerstate stolenitems transport animationstate controlsstate mappings
     )
 
 add_component_dir (esmterrain
@@ -85,7 +86,11 @@ add_component_dir (esmterrain
     )
 
 add_component_dir (misc
-    utf8stream stringops resourcehelpers rng messageformatparser
+    constants utf8stream stringops resourcehelpers rng messageformatparser weakcache
+    )
+
+add_component_dir (debug
+    debugging debuglog
     )
 
 IF(NOT WIN32 AND NOT APPLE)
@@ -126,7 +131,7 @@ add_component_dir (myguiplatform
     )
 
 add_component_dir (widgets
-    box imagebutton tags list numericeditbox sharedstatebutton windowcaption widgets
+    box fontwrapper imagebutton tags list numericeditbox sharedstatebutton windowcaption widgets
     )
 
 add_component_dir (fontloader
@@ -150,6 +155,23 @@ if(NOT WIN32 AND NOT ANDROID)
         crashcatcher
     )
 endif()
+
+add_component_dir(detournavigator
+    debug
+    makenavmesh
+    findsmoothpath
+    recastmeshbuilder
+    recastmeshmanager
+    cachedrecastmeshmanager
+    navmeshmanager
+    navigator
+    asyncnavmeshupdater
+    chunkytrimesh
+    recastmesh
+    tilecachedrecastmeshmanager
+    recastmeshobject
+    navmeshtilescache
+    )
 
 set (ESM_UI ${CMAKE_SOURCE_DIR}/files/ui/contentselector.ui
     )
@@ -196,6 +218,7 @@ target_link_libraries(components
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_IOSTREAMS_LIBRARY}
     ${OSG_LIBRARIES}
     ${OPENTHREADS_LIBRARIES}
     ${OSGPARTICLE_LIBRARIES}
@@ -209,11 +232,16 @@ target_link_libraries(components
     ${SDL2_LIBRARIES}
     ${OPENGL_gl_LIBRARY}
     ${MyGUI_LIBRARIES}
+    ${BSAOPTHASH_LIBRARIES}
+    RecastNavigation::DebugUtils
+    RecastNavigation::Detour
+    RecastNavigation::Recast
     )
 
 if (WIN32)
     target_link_libraries(components
-    ${Boost_LOCALE_LIBRARY})
+    ${Boost_LOCALE_LIBRARY}
+    ${Boost_ZLIB_LIBRARY})
 endif()
 
 if (USE_QT)
@@ -240,6 +268,11 @@ endif()
 # Fix for not visible pthreads functions for linker with glibc 2.15
 if (UNIX AND NOT APPLE)
 target_link_libraries(components ${CMAKE_THREAD_LIBS_INIT})
+endif()
+
+if (BUILD_WITH_CODE_COVERAGE)
+    add_definitions(--coverage)
+    target_link_libraries(components gcov)
 endif()
 
 
